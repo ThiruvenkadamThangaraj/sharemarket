@@ -79,7 +79,6 @@ public class SignalService {
 
         double threshold       = config.getRangeThresholdPercent() / 100.0;
         boolean nearSupport    = currentPrice <= support * (1.0 + threshold);
-        boolean nearResistance = currentPrice >= resistance * (1.0 - threshold);
 
         OHLCData latestBar       = bars.get(bars.size() - 1);
         OHLCData previousBar     = bars.size() >= 2 ? bars.get(bars.size() - 2) : latestBar;
