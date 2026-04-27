@@ -1,0 +1,14 @@
+# Maven build output
+target/
+
+# Generated Excel reports
+reports/
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
