@@ -16,10 +16,10 @@ PriceDataService          ← HTTP fetch, JSON parse → List<OHLCData>
 IndicatorService           ← TA4J: RSI-14 (blue line), SMA-9 of RSI (yellow line)
       │                          Support / Resistance (lowest low / highest high)
       ▼
-SignalService              ← Decision logic → MarketSignal (BUY CONFIRM / BUY / WAIT / SELL …)
+SignalService              ← Decision logic → MarketSignal (BUY CONFIRM / WAIT / SHORT CONFIRM …)
       │
       ▼
-ExcelReportService         ← Apache POI → market-report-YYYY-MM-DD_HH-mm_RSI30-40_OB70.xlsx
+ExcelReportService         ← Apache POI → market-report-YYYY-MM-DD_HH-mm_RSI30-50_OB70.xlsx
       ▲
       │
 DailyMarketJob             ← @Scheduled cron (default 21:05 UTC daily)
@@ -36,16 +36,16 @@ Signals are evaluated in priority order (top = highest priority):
 | **CRITICAL OS** | RSI < 20 | Dark navy |
 | **EXTREME OS** | RSI < 25 | Deep blue |
 | **OVERSOLD** | RSI < 30 | Blue |
-| **BUY CONFIRM** | RSI blue > yellow AND RSI in [30–40] AND price near support | Deep green |
-| **BULLISH START** | RSI blue > yellow AND RSI in [30–40] | Medium green |
-| **WAIT** | RSI blue > yellow but outside [30–40], or below yellow | Amber |
-| **SELL** | RSI blue < yellow AND price near resistance | Red |
+| **BUY CONFIRM** | RSI blue > yellow AND RSI in [30–50] AND price near support | Deep green |
+| **BULLISH START** | RSI blue > yellow AND RSI in [30–50] | Medium green |
+| **WAIT** | RSI blue > yellow but outside [30–50], or below yellow | Amber |
+| **SHORT CONFIRM** | Price in top 3% resistance zone AND RSI blue < yellow AND rejection candle AND close breaks previous low | Red |
 | **OVERBOUGHT** | RSI > 70 | Orange |
 | **EXTREME OB** | RSI > 80 | Deep red |
 | **CRITICAL OB** | RSI > 95 | Maroon |
 
 *"Near support/resistance" = within 3% of the 20-bar low/high (configurable).*  
-*RSI filename suffix shows active config, e.g. `_RSI30-40_OB70`.*
+*RSI filename suffix shows active config, e.g. `_RSI30-50_OB70`.*
 
 ---
 
@@ -75,7 +75,7 @@ Signals are evaluated in priority order (top = highest priority):
 - Reason column explains exactly why each signal was triggered
 - Dynamic row heights — long Reason text never overlaps other rows
 - Filename includes active RSI config for traceability, e.g.:  
-  `market-report-2026-04-27_14-12_RSI30-40_OB70.xlsx`
+      `market-report-2026-04-27_14-12_RSI30-50_OB70.xlsx`
 
 ---
 
@@ -143,7 +143,7 @@ All settings live in `src/main/resources/application.properties`:
 
 | Property | Default | Description |
 |----------|---------|-------------|
-| `market.data-interval` | `1h` | Bar interval (`1h`, `1d`, `1wk`, `1mo`) |
+| `market.data-interval` | `1d` | Bar interval (`1h`, `1d`, `1wk`, `1mo`) |
 | `market.data-range` | `3mo` | Historical range (`5d`, `1mo`, `3mo`, `1y`, `2y`, `5y`) |
 
 **Recommended pairings:**
@@ -162,7 +162,7 @@ All settings live in `src/main/resources/application.properties`:
 | `market.rsi.period` | `14` | RSI look-back period |
 | `market.rsi.ma-period` | `9` | SMA period applied to RSI |
 | `market.rsi.bullish-range-min` | `30` | Lower bound of bullish RSI zone |
-| `market.rsi.bullish-range-max` | `40` | Upper bound of bullish RSI zone |
+| `market.rsi.bullish-range-max` | `50` | Upper bound of bullish RSI zone |
 | `market.rsi.overbought-level` | `70` | RSI threshold for OVERBOUGHT |
 | `market.rsi.extreme-overbought-level` | `80` | RSI threshold for EXTREME OB |
 | `market.rsi.critical-overbought-level` | `95` | RSI threshold for CRITICAL OB |
@@ -191,7 +191,7 @@ src/main/java/com/sharemarket/
 ├── service/
 │   ├── PriceDataService.java            Yahoo Finance HTTP fetch + JSON parse
 │   ├── IndicatorService.java            TA4J RSI-14, SMA-9 of RSI, S/R levels
-│   ├── SignalService.java               BUY / WAIT / SELL decision logic
+│   ├── SignalService.java               BUY / WAIT / SHORT decision logic
 │   └── ExcelReportService.java          Apache POI Excel writer
 └── scheduler/
     ├── DailyMarketJob.java              @Scheduled cron job
@@ -209,4 +209,3 @@ src/main/java/com/sharemarket/
 | Apache POI | 5.2.5 | Write `.xlsx` files |
 | Jackson | 2.x | Parse Yahoo Finance JSON |
 | Lombok | latest | Boilerplate reduction (`@Data`, `@Builder`) |
-| Lombok | Boilerplate reduction |

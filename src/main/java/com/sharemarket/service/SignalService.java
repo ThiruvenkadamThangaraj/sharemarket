@@ -10,21 +10,23 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 
 /**
- * Applies the BUY / WAIT / SELL decision logic for a single symbol.
+ * Applies the BUY / WAIT / SHORT decision logic for a single symbol.
  *
  * ┌─────────────────────────────────────────────────────────────────────────┐
  * │  Signal Decision Tree                                                    │
  * │                                                                          │
  * │  1. RSI < 30                  → OVERSOLD  (strong buy zone)             │
- * │  2. RSI > 70                  → OVERBOUGHT (strong sell zone)           │
- * │  3. RSI blue > RSI yellow AND RSI in [30,40]                            │
+ * │  2. Price in top resistance zone                                        │
+ * │       + RSI blue < RSI yellow                                           │
+ * │       + rejection candle                                                │
+ * │       + current close breaks previous low → SHORT CONFIRM               │
+ * │  3. RSI > 70                  → OVERBOUGHT (strong sell zone)           │
+ * │  4. RSI blue > RSI yellow AND RSI in [30,40]                            │
  * │       + price near support    → BUY CONFIRM  (highest conviction)       │
  * │       otherwise               → BULLISH START                           │
- * │  4. RSI blue > RSI yellow but RSI outside [30,40]                       │
+ * │  5. RSI blue > RSI yellow but RSI outside [30,40]                       │
  * │       otherwise               → WAIT                                    │
- * │  5. RSI blue < RSI yellow                                                │
- * │       + price near support    → BUY CONFIRM  (highest conviction)       │
- * │       + price near resistance → SELL                                    │
+ * │  6. RSI blue < RSI yellow                                                │
  * │       otherwise               → WAIT                                    │
  * └─────────────────────────────────────────────────────────────────────────┘
  */
@@ -75,9 +77,15 @@ public class SignalService {
         double support      = sr[0];
         double resistance   = sr[1];
 
-        double threshold    = config.getRangeThresholdPercent() / 100.0;
-        boolean nearSupport     = currentPrice <= support    * (1.0 + threshold);
-        boolean nearResistance  = currentPrice >= resistance * (1.0 - threshold);
+        double threshold       = config.getRangeThresholdPercent() / 100.0;
+        boolean nearSupport    = currentPrice <= support * (1.0 + threshold);
+        boolean nearResistance = currentPrice >= resistance * (1.0 - threshold);
+
+        OHLCData latestBar       = bars.get(bars.size() - 1);
+        OHLCData previousBar     = bars.size() >= 2 ? bars.get(bars.size() - 2) : latestBar;
+        boolean rejectionCandle  = isRejectionCandle(previousBar, latestBar);
+        boolean brokePreviousLow = breaksPreviousLow(previousBar, latestBar);
+        boolean shortSetup       = nearResistance && rejectionCandle && brokePreviousLow;
 
         // ── 5. Signal logic ───────────────────────────────────────────────
         boolean blueAboveYellow   = rsiResult.rsi() > rsiResult.rsiMA();  // bullish
@@ -114,6 +122,13 @@ public class SignalService {
             reason = String.format(
                 "RSI %.1f < 30 — price may be deeply oversold; watch for reversal",
                 rsiResult.rsi());
+
+        } else if (!blueAboveYellow && shortSetup) {
+            signal = "SHORT CONFIRM";
+            reason = String.format(
+                "Price %.2f is in top resistance zone near %.2f, RSI blue (%.1f) is below yellow (%.1f), "
+                    + "rejection candle formed, and close broke previous low %.2f",
+                currentPrice, resistance, rsiResult.rsi(), rsiResult.rsiMA(), previousBar.getLow());
 
         } else if (criticalOverbought) {
             signal = "CRITICAL OB";
@@ -169,13 +184,6 @@ public class SignalService {
                 config.getRsi().getBullishRangeMin(),
                 config.getRsi().getBullishRangeMax());
 
-        } else if (!blueAboveYellow && nearResistance) {
-            signal = "SELL";
-            reason = String.format(
-                "RSI blue (%.1f) below yellow (%.1f) AND price %.2f is near resistance %.2f — "
-                    + "bearish RSI crossover confirmed at resistance",
-                rsiResult.rsi(), rsiResult.rsiMA(), currentPrice, resistance);
-
         } else {
             signal = "WAIT";
             reason = String.format(
@@ -202,5 +210,36 @@ public class SignalService {
             .signal(signal)
             .reason(reason)
             .build();
+    }
+
+    private boolean isRejectionCandle(OHLCData previousBar, OHLCData latestBar) {
+        return isShootingStar(previousBar)
+            || hasLongUpperWick(previousBar)
+            || isBearishEngulfing(previousBar, latestBar);
+    }
+
+    private boolean breaksPreviousLow(OHLCData previousBar, OHLCData latestBar) {
+        return latestBar.getClose() < previousBar.getLow();
+    }
+
+    private boolean isShootingStar(OHLCData bar) {
+        double body = Math.abs(bar.getClose() - bar.getOpen());
+        double upperWick = bar.getHigh() - Math.max(bar.getOpen(), bar.getClose());
+        double lowerWick = Math.min(bar.getOpen(), bar.getClose()) - bar.getLow();
+        return upperWick >= body * 2.5 && upperWick >= Math.max(lowerWick * 2.0, 0.01);
+    }
+
+    private boolean hasLongUpperWick(OHLCData bar) {
+        double upperWick = bar.getHigh() - Math.max(bar.getOpen(), bar.getClose());
+        double range = Math.max(bar.getHigh() - bar.getLow(), 0.01);
+        return upperWick / range >= 0.45;
+    }
+
+    private boolean isBearishEngulfing(OHLCData previousBar, OHLCData latestBar) {
+        boolean previousBullish = previousBar.getClose() > previousBar.getOpen();
+        boolean latestBearish = latestBar.getClose() < latestBar.getOpen();
+        boolean engulfedBody = latestBar.getOpen() >= previousBar.getClose()
+            && latestBar.getClose() <= previousBar.getOpen();
+        return previousBullish && latestBearish && engulfedBody;
     }
 }

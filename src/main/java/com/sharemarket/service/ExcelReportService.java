@@ -30,7 +30,7 @@ import java.util.List;
  *  BUY CONFIRM → deep green
  *  BULLISH START → medium green
  *  BUY         → light green
- *  SELL        → red
+ *  SHORT CONFIRM → red
  *  OVERBOUGHT  → orange
  *  OVERSOLD    → blue
  *  WAIT / other→ amber
@@ -235,7 +235,7 @@ public class ExcelReportService {
             case "BUY CONFIRM" -> CLR_BUY_CONFIRM;
             case "BULLISH START" -> CLR_BULLISH_START;
             case "BUY"        -> CLR_BUY;
-            case "SELL"       -> CLR_SELL;
+            case "SHORT CONFIRM" -> CLR_SELL;
             case "CRITICAL OB" -> CLR_CRITICAL_OB;
             case "EXTREME OB"  -> CLR_EXTREME_OB;
             case "OVERBOUGHT" -> CLR_OVERBOUGHT;
@@ -307,11 +307,11 @@ public class ExcelReportService {
     }
 
     private enum Signal {
-        BUY_CONFIRM, BULLISH_START, BUY, SELL, OVERBOUGHT, OVERSOLD, WAIT;
+        BUY_CONFIRM, BULLISH_START, BUY, SHORT_CONFIRM, OVERBOUGHT, OVERSOLD, WAIT;
 
         static boolean isDark(String signalStr) {
             return switch (signalStr) {
-                case "BUY CONFIRM", "BULLISH START", "SELL", "CRITICAL OB", "EXTREME OB", "OVERBOUGHT", "EXTREME OS", "OVERSOLD", "CRITICAL OS" -> true;
+                case "BUY CONFIRM", "BULLISH START", "SHORT CONFIRM", "CRITICAL OB", "EXTREME OB", "OVERBOUGHT", "EXTREME OS", "OVERSOLD", "CRITICAL OS" -> true;
                 default -> false;  // BUY (light green), WAIT (amber) → black text
             };
         }
