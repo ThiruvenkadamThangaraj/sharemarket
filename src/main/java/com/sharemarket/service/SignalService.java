@@ -83,9 +83,13 @@ public class SignalService {
 
         OHLCData latestBar       = bars.get(bars.size() - 1);
         OHLCData previousBar     = bars.size() >= 2 ? bars.get(bars.size() - 2) : latestBar;
+        // SHORT setup should form at resistance on the setup/rejection bar,
+        // then get confirmed by the latest close breaking that bar's low.
+        boolean previousNearResistance = previousBar.getHigh() >= resistance * (1.0 - threshold)
+            || previousBar.getClose() >= resistance * (1.0 - threshold);
         boolean rejectionCandle  = isRejectionCandle(previousBar, latestBar);
         boolean brokePreviousLow = breaksPreviousLow(previousBar, latestBar);
-        boolean shortSetup       = nearResistance && rejectionCandle && brokePreviousLow;
+        boolean shortSetup       = previousNearResistance && rejectionCandle && brokePreviousLow;
 
         // ── 5. Signal logic ───────────────────────────────────────────────
         boolean blueAboveYellow   = rsiResult.rsi() > rsiResult.rsiMA();  // bullish
@@ -126,9 +130,9 @@ public class SignalService {
         } else if (!blueAboveYellow && shortSetup) {
             signal = "SHORT CONFIRM";
             reason = String.format(
-                "Price %.2f is in top resistance zone near %.2f, RSI blue (%.1f) is below yellow (%.1f), "
-                    + "rejection candle formed, and close broke previous low %.2f",
-                currentPrice, resistance, rsiResult.rsi(), rsiResult.rsiMA(), previousBar.getLow());
+                "Setup bar tested top resistance near %.2f, RSI blue (%.1f) is below yellow (%.1f), "
+                    + "rejection candle formed, and latest close %.2f broke previous low %.2f",
+                resistance, rsiResult.rsi(), rsiResult.rsiMA(), latestBar.getClose(), previousBar.getLow());
 
         } else if (criticalOverbought) {
             signal = "CRITICAL OB";
