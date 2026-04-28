@@ -1,8 +1,10 @@
 # Maven build output
 target/
+**/target/
 
 # Generated Excel reports
 reports/
+**/smc-reports/
 
 # IDE
 .vscode/
