@@ -119,6 +119,7 @@ public class ExcelReportService {
 
         Cell cell = row.createCell(0);
         cell.setCellValue("DAILY MARKET SIGNAL REPORT  ·  " + date
+            + "  ·  Interval: " + config.getDataInterval()
             + "  ·  RSI-" + config.getRsi().getPeriod()
             + " vs SMA-" + config.getRsi().getMaPeriod());
         cell.setCellStyle(buildTitleStyle(wb));

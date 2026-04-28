@@ -2,10 +2,6 @@
 target/
 **/target/
 
-# Generated Excel reports
-reports/
-**/smc-reports/
-
 # IDE
 .vscode/
 .idea/
