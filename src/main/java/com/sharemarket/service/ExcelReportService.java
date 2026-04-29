@@ -44,7 +44,8 @@ public class ExcelReportService {
 
     private static final String[] HEADERS = {
         "Symbol", "Type", "Sector", "Current Price", "RSI (Blue)",
-        "RSI MA (Yellow)", "Signal", "Reason", "Support", "Resistance"
+        "RSI MA (Yellow)", "Signal", "Reason", "Support", "Resistance",
+        "Price vs Support %"
     };
 
     // ── Signal colours (RGB bytes) ─────────────────────────────────────────
@@ -66,7 +67,7 @@ public class ExcelReportService {
 
     // ── Column widths (in 1/256 of a character width, POI unit) ───────────
     private static final int[] COL_WIDTHS = {
-        14, 10, 18, 18, 14, 16, 16, 60, 14, 14
+        14, 10, 18, 18, 14, 16, 16, 60, 14, 14, 18
     };
 
     // ── Public API ─────────────────────────────────────────────────────────
@@ -166,16 +167,22 @@ public class ExcelReportService {
             CellStyle number = buildNumberStyle(wb, rowBg);
             CellStyle signal = buildSignalStyle(wb, s.getSignal());
 
-            putString(row, 0, s.getSymbol(),       base);
-            putString(row, 1, s.getType(),         base);
-            putString(row, 2, sector,              base);
-            putDouble(row, 3, s.getCurrentPrice(), number);
-            putDouble(row, 4, s.getRsi(),          number);
-            putDouble(row, 5, s.getRsiMA(),        number);
-            putString(row, 6, s.getSignal(),       signal);
-            putString(row, 7, s.getReason(),       base);
-            putDouble(row, 8, s.getSupport(),      number);
-            putDouble(row, 9, s.getResistance(),   number);
+            double priceToSupportPct = s.getSupport() > 0
+                ? ((s.getCurrentPrice() - s.getSupport()) / s.getSupport()) * 100.0
+                : 0.0;
+            CellStyle ptsStyle = buildPriceToSupportStyle(wb, rowBg, priceToSupportPct);
+
+            putString(row, 0,  s.getSymbol(),       base);
+            putString(row, 1,  s.getType(),         base);
+            putString(row, 2,  sector,              base);
+            putDouble(row, 3,  s.getCurrentPrice(), number);
+            putDouble(row, 4,  s.getRsi(),          number);
+            putDouble(row, 5,  s.getRsiMA(),        number);
+            putString(row, 6,  s.getSignal(),       signal);
+            putString(row, 7,  s.getReason(),       base);
+            putDouble(row, 8,  s.getSupport(),      number);
+            putDouble(row, 9,  s.getResistance(),   number);
+            putDouble(row, 10, priceToSupportPct,   ptsStyle);
         }
     }
 
@@ -258,6 +265,28 @@ public class ExcelReportService {
         boolean darkBg = Signal.isDark(signal);
         f.setColor(new XSSFColor(darkBg ? rgb(0xFF,0xFF,0xFF) : rgb(0x00,0x00,0x00), null));
         s.setFont(f);
+        return s;
+    }
+
+    /**
+     * Style for the "Price vs Support %" cell.
+     * Highlights bright green when the gap is < 0.3 % (price very close to support → buy opportunity).
+     */
+    private CellStyle buildPriceToSupportStyle(XSSFWorkbook wb, byte[] rowBg, double pct) {
+        XSSFCellStyle s = wb.createCellStyle();
+        byte[] bg = pct < 0.3 ? rgb(0x00, 0xB0, 0x50) : rowBg;  // deep green when near support
+        s.setFillForegroundColor(new XSSFColor(bg, null));
+        s.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+        s.setAlignment(HorizontalAlignment.RIGHT);
+        s.setVerticalAlignment(VerticalAlignment.CENTER);
+        s.setDataFormat(wb.createDataFormat().getFormat("0.00\"%\""));
+        addBorders(s);
+        if (pct < 0.3) {
+            XSSFFont f = wb.createFont();
+            f.setBold(true);
+            f.setColor(new XSSFColor(rgb(0xFF, 0xFF, 0xFF), null));
+            s.setFont(f);
+        }
         return s;
     }
 
