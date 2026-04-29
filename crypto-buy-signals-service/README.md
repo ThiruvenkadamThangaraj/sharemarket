@@ -1,6 +1,6 @@
 # Crypto Buy Signals Service (Java)
 
-A standalone Spring Boot microservice that evaluates crypto buy opportunities with a 3-signal framework:
+A standalone Spring Boot microservice that evaluates configured crypto and equity symbols with a 3-signal framework:
 
 1. Current price is at least 50% below ATH
 2. RSI is below 40
@@ -16,15 +16,21 @@ Request example:
 
 ```json
 {
-  "symbols": ["BTC", "ETH", "XRP", "BNB"]
+  "symbols": ["BTC", "ETH", "BNB", "SOL", "XRP", "AAPL", "MSFT", "NVDA"]
 }
 ```
 
-Only these four symbols are supported in this service:
-- `BTC-USD`
-- `ETH-USD`
-- `XRP-USD`
-- `BNB-USD`
+Supported symbols are controlled by `crypto.framework.allowed-symbols`.
+
+Default universe:
+- `BTC-USD`, `ETH-USD`, `BNB-USD`, `SOL-USD`, `XRP-USD`
+- `AAPL`, `MSFT`, `AMZN`, `GOOGL`, `META`, `NVDA`, `TSLA`, `NFLX`, `ADBE`, `CRM`
+- `AMD`, `INTC`, `AVGO`, `QCOM`, `MU`, `TXN`, `AMAT`, `LRCX`, `KLAC`, `MRVL`
+- `JPM`, `BAC`, `WFC`, `GS`, `MS`, `V`, `MA`, `AXP`
+- `WMT`, `COST`, `TGT`, `HD`, `LOW`, `NKE`, `MCD`, `SBUX`
+- `JNJ`, `PFE`, `UNH`, `ABBV`, `MRK`
+- `XOM`, `CVX`, `COP`, `SLB`
+- `BA`, `CAT`, `GE`, `UBER`, `PLTR`
 
 If any other symbol is sent, API returns `400 Bad Request`.
 

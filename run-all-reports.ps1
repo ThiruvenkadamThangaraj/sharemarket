@@ -31,6 +31,19 @@ function Stop-ProcessTree {
     }
 }
 
+function Stop-ListenerOnPort {
+    param([int]$Port)
+
+    $listeners = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
+    foreach ($listener in $listeners) {
+        $procId = $listener.OwningProcess
+        if ($procId -and (Get-Process -Id $procId -ErrorAction SilentlyContinue)) {
+            Write-Host "Stopping existing listener on port $Port (PID: $procId)" -ForegroundColor Yellow
+            Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
 function Invoke-ReportRun {
     param(
         [string]$Label,
@@ -86,12 +99,15 @@ function Invoke-CryptoReportRun {
         [string]$PomPath,
         [string]$ReportDirectory,
         [string]$ServiceUrl = "http://localhost:8091/api/v1/crypto/signals/analyze/report",
-        [string[]]$Symbols = @("BTC", "ETH", "XRP", "BNB"),
+        [string[]]$Symbols = @("BTC", "ETH", "BNB", "SOL", "XRP", "AAPL", "MSFT", "AMZN", "GOOGL", "META", "NVDA", "TSLA", "NFLX", "ADBE", "CRM", "AMD", "INTC", "AVGO", "QCOM", "MU", "TXN", "AMAT", "LRCX", "KLAC", "MRVL", "JPM", "BAC", "WFC", "GS", "MS", "V", "MA", "AXP", "WMT", "COST", "TGT", "HD", "LOW", "NKE", "MCD", "SBUX", "JNJ", "PFE", "UNH", "ABBV", "MRK", "XOM", "CVX", "COP", "SLB", "BA", "CAT", "GE", "UBER", "PLTR"),
         [int]$StartupTimeoutSeconds = 180,
         [int]$ReportTimeoutSeconds = 180
     )
 
     $runStart = Get-Date
+    $analyzeUrl = $ServiceUrl -replace '/analyze/report$', '/analyze'
+    $servicePort = [int]([uri]$ServiceUrl).Port
+    Stop-ListenerOnPort -Port $servicePort
     Write-Host ""
     Write-Host "=== Generating Crypto Buy Signals Report ===" -ForegroundColor Cyan
 
@@ -105,7 +121,7 @@ function Invoke-CryptoReportRun {
 
     $startupDeadline = (Get-Date).AddSeconds($StartupTimeoutSeconds)
     $bodyJson = @{ symbols = $Symbols } | ConvertTo-Json -Compress
-    $response = $null
+    $analysisRows = $null
 
     while ((Get-Date) -lt $startupDeadline) {
         Start-Sleep -Seconds 3
@@ -115,7 +131,7 @@ function Invoke-CryptoReportRun {
         }
 
         try {
-            $response = Invoke-RestMethod -Method Post -Uri $ServiceUrl -ContentType "application/json" -Body $bodyJson
+            $analysisRows = Invoke-RestMethod -Method Post -Uri $analyzeUrl -ContentType "application/json" -Body $bodyJson
             break
         }
         catch {
@@ -123,18 +139,29 @@ function Invoke-CryptoReportRun {
         }
     }
 
-    if ($null -eq $response) {
+    if ($null -eq $analysisRows) {
         Stop-ProcessTree -ParentId $process.Id
         throw "Crypto report endpoint was not reachable within $StartupTimeoutSeconds seconds."
     }
+
+    $reportResponse = Invoke-RestMethod -Method Post -Uri $ServiceUrl -ContentType "application/json" -Body $bodyJson
+
+    $rows = @($analysisRows)
+    $buyCount = @($rows | Where-Object { $_.decision -eq 'BUY' }).Count
+    $waitCount = @($rows | Where-Object { $_.decision -eq 'WAIT' }).Count
+    $sellWatchCount = @($rows | Where-Object { $_.decision -eq 'SELL_WATCH' }).Count
+    $noDataCount = @($rows | Where-Object { $_.scenario -eq 'NO_DATA' }).Count
+    $insufficientDataCount = @($rows | Where-Object { $_.scenario -eq 'INSUFFICIENT_DATA' }).Count
+
+    Write-Host "Crypto analysis summary: total=$($rows.Count), BUY=$buyCount, WAIT=$waitCount, SELL_WATCH=$sellWatchCount, NO_DATA=$noDataCount, INSUFFICIENT_DATA=$insufficientDataCount" -ForegroundColor Yellow
 
     $report = $null
     $reportDeadline = (Get-Date).AddSeconds($ReportTimeoutSeconds)
     while ((Get-Date) -lt $reportDeadline) {
         Start-Sleep -Seconds 2
 
-        if ($null -ne $response.reportPath -and (Test-Path $response.reportPath)) {
-            $report = Get-Item $response.reportPath
+        if ($null -ne $reportResponse.reportPath -and (Test-Path $reportResponse.reportPath)) {
+            $report = Get-Item $reportResponse.reportPath
             break
         }
 
@@ -183,7 +210,7 @@ Write-Host "Repository root: $repoRoot" -ForegroundColor Yellow
 
 $sharemarketReport = Invoke-ReportRun -Label "Sharemarket RSI Report" -WorkingDirectory $repoRoot -PomPath $sharemarketPom -JvmArgs "-Dmarket.run-on-startup=true -Dspring.task.scheduling.enabled=false -Dspring.main.web-application-type=none" -ReportDirectory $sharemarketReportsDir -TimeoutSeconds 240
 $smcReport = Invoke-ReportRun -Label "SMC Zone Report" -WorkingDirectory $repoRoot -PomPath $smcPom -JvmArgs "-Dsmc.run-on-startup=true -Dspring.main.web-application-type=none" -ReportDirectory $smcReportsDir -TimeoutSeconds 240
-$cryptoReport = Invoke-CryptoReportRun -WorkingDirectory $repoRoot -PomPath $cryptoPom -ReportDirectory $cryptoReportsDir -Symbols @("BTC", "ETH", "XRP", "BNB") -StartupTimeoutSeconds 180 -ReportTimeoutSeconds 180
+$cryptoReport = Invoke-CryptoReportRun -WorkingDirectory $repoRoot -PomPath $cryptoPom -ReportDirectory $cryptoReportsDir -Symbols @("BTC", "ETH", "BNB", "SOL", "XRP", "AAPL", "MSFT", "AMZN", "GOOGL", "META", "NVDA", "TSLA", "NFLX", "ADBE", "CRM", "AMD", "INTC", "AVGO", "QCOM", "MU", "TXN", "AMAT", "LRCX", "KLAC", "MRVL", "JPM", "BAC", "WFC", "GS", "MS", "V", "MA", "AXP", "WMT", "COST", "TGT", "HD", "LOW", "NKE", "MCD", "SBUX", "JNJ", "PFE", "UNH", "ABBV", "MRK", "XOM", "CVX", "COP", "SLB", "BA", "CAT", "GE", "UBER", "PLTR") -StartupTimeoutSeconds 180 -ReportTimeoutSeconds 180
 
 $combinedRoot = Join-Path $repoRoot "combined-reports"
 $runFolderName = (Get-Date).ToString("yyyy-MM-dd_HH-mm-ss")

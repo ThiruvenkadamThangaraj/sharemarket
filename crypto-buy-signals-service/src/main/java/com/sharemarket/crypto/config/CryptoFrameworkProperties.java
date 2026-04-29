@@ -41,7 +41,16 @@ public class CryptoFrameworkProperties {
     private List<@Min(2) @Max(1000) Integer> maPeriods = List.of(50, 100, 200);
 
     @NotEmpty
-    private List<@NotBlank String> allowedSymbols = List.of("BTC-USD", "ETH-USD", "XRP-USD", "BNB-USD");
+    private List<@NotBlank String> allowedSymbols = List.of(
+        "BTC-USD", "ETH-USD", "BNB-USD", "SOL-USD", "XRP-USD",
+        "AAPL", "MSFT", "AMZN", "GOOGL", "META", "NVDA", "TSLA", "NFLX", "ADBE", "CRM",
+        "AMD", "INTC", "AVGO", "QCOM", "MU", "TXN", "AMAT", "LRCX", "KLAC", "MRVL",
+        "JPM", "BAC", "WFC", "GS", "MS", "V", "MA", "AXP",
+        "WMT", "COST", "TGT", "HD", "LOW", "NKE", "MCD", "SBUX",
+        "JNJ", "PFE", "UNH", "ABBV", "MRK",
+        "XOM", "CVX", "COP", "SLB",
+        "BA", "CAT", "GE", "UBER", "PLTR"
+    );
 
     public String getInterval() {
         return interval;

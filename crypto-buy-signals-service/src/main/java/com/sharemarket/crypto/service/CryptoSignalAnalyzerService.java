@@ -36,12 +36,12 @@ public class CryptoSignalAnalyzerService {
 
     public List<CoinSignalResponse> analyze(List<String> symbols) {
         Set<String> allowedSymbols = properties.getAllowedSymbols().stream()
-            .map(this::normalizeSymbol)
+            .map(this::normalizeConfiguredSymbol)
             .collect(Collectors.toCollection(LinkedHashSet::new));
 
         List<CoinSignalResponse> responses = new ArrayList<>();
         for (String symbol : symbols) {
-            String normalized = normalizeSymbol(symbol);
+            String normalized = resolveRequestedSymbol(symbol, allowedSymbols);
             if (!allowedSymbols.contains(normalized)) {
                 throw new IllegalArgumentException(
                     "Unsupported symbol '" + symbol + "'. Allowed symbols: "
@@ -53,9 +53,30 @@ public class CryptoSignalAnalyzerService {
         return responses;
     }
 
-    private String normalizeSymbol(String symbol) {
-        String normalized = symbol.trim().toUpperCase(Locale.ROOT);
-        return normalized.endsWith("-USD") ? normalized : normalized + "-USD";
+    private String normalizeConfiguredSymbol(String symbol) {
+        return symbol.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private String resolveRequestedSymbol(String symbol, Set<String> allowedSymbols) {
+        String normalized = normalizeConfiguredSymbol(symbol);
+
+        if (allowedSymbols.contains(normalized)) {
+            return normalized;
+        }
+
+        if (normalized.endsWith("-USD")) {
+            String base = normalized.substring(0, normalized.length() - 4);
+            if (allowedSymbols.contains(base)) {
+                return base;
+            }
+        } else {
+            String usd = normalized + "-USD";
+            if (allowedSymbols.contains(usd)) {
+                return usd;
+            }
+        }
+
+        return normalized;
     }
 
     private CoinSignalResponse analyzeOne(String symbol) {
