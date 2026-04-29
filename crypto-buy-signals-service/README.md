@@ -38,8 +38,14 @@ Response contains per-symbol details for:
 - ATH discount check
 - RSI value and threshold check
 - MA 50/100/200 values and MA hit count
+- Scenario (`NO_DATA`, `INSUFFICIENT_DATA`, `MISSING_RSI`, `ALL_CONDITIONS_MET`, etc.)
 - Decision (`BUY`, `WAIT`, `SELL_WATCH`)
 - Buy strength (`NONE`, `BASIC`, `STRONG`, `VERY_STRONG`)
+
+Symbol handling:
+- Crypto symbols can be sent either as `BTC` or `BTC-USD`
+- Stock symbols stay as plain tickers like `AAPL`, `MSFT`, `NVDA`
+- The generated report preserves this format: crypto rows show `-USD`, stock rows do not
 
 The report endpoint also writes an Excel file to `crypto.report.output-directory`
 and returns the generated file path.
@@ -65,3 +71,11 @@ From the repository root, you can generate all reports (Sharemarket + SMC + Cryp
 ```
 
 The crypto output is copied into the latest folder under `combined-reports` as `crypto-report.xlsx`.
+
+The orchestrator also prints a crypto analysis summary before writing the Excel file, for example:
+
+```text
+Crypto analysis summary: total=55, BUY=0, WAIT=47, SELL_WATCH=8, NO_DATA=0, INSUFFICIENT_DATA=0
+```
+
+This makes it clear whether the run failed or whether the service completed successfully but some symbols did not meet conditions.
