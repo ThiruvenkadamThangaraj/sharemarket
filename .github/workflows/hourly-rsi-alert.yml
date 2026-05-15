@@ -47,4 +47,6 @@ jobs:
             -Dspring.mail.username="${GMAIL_USER}" \
             -Dspring.mail.password="${GMAIL_APP_PASSWORD}" \
             -Dalert.email.to="${ALERT_EMAIL_TO}" \
+            -Dalert.rsi.overbought=50 \
+            -Dalert.rsi.oversold=50 \
             -jar target/sharemarket-1.0.0.jar
