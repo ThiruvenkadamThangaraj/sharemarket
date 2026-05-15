@@ -1,5 +1,21 @@
+param(
+    [ValidateSet("hourly", "daily", "weekly", "monthly")]
+    [string]$Timeline = "daily"
+)
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+
+$timelineMap = @{
+    hourly  = @{ interval = "1h";  range = "3mo" }
+    daily   = @{ interval = "1d";  range = "3mo" }
+    weekly  = @{ interval = "1wk"; range = "1y"  }
+    monthly = @{ interval = "1mo"; range = "5y"  }
+}
+
+$selected = $timelineMap[$Timeline]
+$dataInterval = $selected.interval
+$dataRange = $selected.range
 
 function Get-LatestReport {
     param(
@@ -58,6 +74,11 @@ function Invoke-ReportRun {
     Write-Host ""
     Write-Host "=== Generating $Label ===" -ForegroundColor Cyan
 
+    if (-not (Test-Path $ReportDirectory)) {
+        New-Item -Path $ReportDirectory -ItemType Directory -Force | Out-Null
+        Write-Host "$Label report directory created: $ReportDirectory" -ForegroundColor DarkYellow
+    }
+
     $argumentList = @(
         "-f", $PomPath,
         "spring-boot:run",
@@ -98,6 +119,8 @@ function Invoke-CryptoReportRun {
         [string]$WorkingDirectory,
         [string]$PomPath,
         [string]$ReportDirectory,
+        [string]$DataInterval,
+        [string]$DataRange,
         [string]$ServiceUrl = "http://localhost:8091/api/v1/crypto/signals/analyze/report",
         [string[]]$Symbols = @("BTC", "ETH", "BNB", "SOL", "XRP", "AAPL", "MSFT", "AMZN", "GOOGL", "META", "NVDA", "TSLA", "NFLX", "ADBE", "CRM", "AMD", "INTC", "AVGO", "QCOM", "MU", "TXN", "AMAT", "LRCX", "KLAC", "MRVL", "JPM", "BAC", "WFC", "GS", "MS", "V", "MA", "AXP", "WMT", "COST", "TGT", "HD", "LOW", "NKE", "MCD", "SBUX", "JNJ", "PFE", "UNH", "ABBV", "MRK", "XOM", "CVX", "COP", "SLB", "BA", "CAT", "GE", "UBER", "PLTR"),
         [int]$StartupTimeoutSeconds = 180,
@@ -108,12 +131,19 @@ function Invoke-CryptoReportRun {
     $analyzeUrl = $ServiceUrl -replace '/analyze/report$', '/analyze'
     $servicePort = [int]([uri]$ServiceUrl).Port
     Stop-ListenerOnPort -Port $servicePort
+
+    if (-not (Test-Path $ReportDirectory)) {
+        New-Item -Path $ReportDirectory -ItemType Directory -Force | Out-Null
+        Write-Host "Crypto report directory created: $ReportDirectory" -ForegroundColor DarkYellow
+    }
+
     Write-Host ""
     Write-Host "=== Generating Crypto Buy Signals Report ===" -ForegroundColor Cyan
 
     $argumentList = @(
         "-f", $PomPath,
-        "spring-boot:run"
+        "spring-boot:run",
+        "-Dspring-boot.run.jvmArguments=-Dcrypto.framework.interval=$DataInterval -Dcrypto.framework.range=$DataRange"
     )
 
     $process = Start-Process -FilePath "mvn" -ArgumentList $argumentList -WorkingDirectory $WorkingDirectory -PassThru
@@ -207,10 +237,11 @@ if (-not (Test-Path $cryptoPom)) {
 }
 
 Write-Host "Repository root: $repoRoot" -ForegroundColor Yellow
+Write-Host "Timeline preset: $Timeline (interval=$dataInterval, range=$dataRange)" -ForegroundColor Yellow
 
-$sharemarketReport = Invoke-ReportRun -Label "Sharemarket RSI Report" -WorkingDirectory $repoRoot -PomPath $sharemarketPom -JvmArgs "-Dmarket.run-on-startup=true -Dspring.task.scheduling.enabled=false -Dspring.main.web-application-type=none" -ReportDirectory $sharemarketReportsDir -TimeoutSeconds 240
-$smcReport = Invoke-ReportRun -Label "SMC Zone Report" -WorkingDirectory $repoRoot -PomPath $smcPom -JvmArgs "-Dsmc.run-on-startup=true -Dspring.main.web-application-type=none" -ReportDirectory $smcReportsDir -TimeoutSeconds 240
-$cryptoReport = Invoke-CryptoReportRun -WorkingDirectory $repoRoot -PomPath $cryptoPom -ReportDirectory $cryptoReportsDir -Symbols @("BTC", "ETH", "BNB", "SOL", "XRP", "AAPL", "MSFT", "AMZN", "GOOGL", "META", "NVDA", "TSLA", "NFLX", "ADBE", "CRM", "AMD", "INTC", "AVGO", "QCOM", "MU", "TXN", "AMAT", "LRCX", "KLAC", "MRVL", "JPM", "BAC", "WFC", "GS", "MS", "V", "MA", "AXP", "WMT", "COST", "TGT", "HD", "LOW", "NKE", "MCD", "SBUX", "JNJ", "PFE", "UNH", "ABBV", "MRK", "XOM", "CVX", "COP", "SLB", "BA", "CAT", "GE", "UBER", "PLTR") -StartupTimeoutSeconds 180 -ReportTimeoutSeconds 180
+$sharemarketReport = Invoke-ReportRun -Label "Sharemarket RSI Report" -WorkingDirectory $repoRoot -PomPath $sharemarketPom -JvmArgs "-Dmarket.run-on-startup=true -Dspring.task.scheduling.enabled=false -Dspring.main.web-application-type=none -Dmarket.data-interval=$dataInterval -Dmarket.data-range=$dataRange" -ReportDirectory $sharemarketReportsDir -TimeoutSeconds 240
+$smcReport = Invoke-ReportRun -Label "SMC Zone Report" -WorkingDirectory $repoRoot -PomPath $smcPom -JvmArgs "-Dsmc.run-on-startup=true -Dspring.main.web-application-type=none -Dsmc.data-interval=$dataInterval -Dsmc.data-range=$dataRange" -ReportDirectory $smcReportsDir -TimeoutSeconds 240
+$cryptoReport = Invoke-CryptoReportRun -WorkingDirectory $repoRoot -PomPath $cryptoPom -ReportDirectory $cryptoReportsDir -DataInterval $dataInterval -DataRange $dataRange -Symbols @("BTC", "ETH", "BNB", "SOL", "XRP", "AAPL", "MSFT", "AMZN", "GOOGL", "META", "NVDA", "TSLA", "NFLX", "ADBE", "CRM", "AMD", "INTC", "AVGO", "QCOM", "MU", "TXN", "AMAT", "LRCX", "KLAC", "MRVL", "JPM", "BAC", "WFC", "GS", "MS", "V", "MA", "AXP", "WMT", "COST", "TGT", "HD", "LOW", "NKE", "MCD", "SBUX", "JNJ", "PFE", "UNH", "ABBV", "MRK", "XOM", "CVX", "COP", "SLB", "BA", "CAT", "GE", "UBER", "PLTR") -StartupTimeoutSeconds 180 -ReportTimeoutSeconds 180
 
 $combinedRoot = Join-Path $repoRoot "combined-reports"
 $runFolderName = (Get-Date).ToString("yyyy-MM-dd_HH-mm-ss")
