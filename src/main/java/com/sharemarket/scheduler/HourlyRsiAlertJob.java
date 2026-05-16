@@ -120,14 +120,16 @@ public class HourlyRsiAlertJob {
                     pivots != null ? String.format("%.4f", pivots.r1()) : "N/A",
                     pivots != null ? String.format("%.4f", pivots.s4()) : "N/A");
 
+                // ── RSI conditional alert (only fires at RSI ≤30 or ≥80) ───────────
                 rsiAlertService.evaluateAndAlert(
                     symbol, result.rsi(), overboughtThreshold, oversoldThreshold,
                     currentPrice, support, resistance, pivots);
 
-                // Small pause to respect Yahoo Finance rate limits between the extra fetch
-                Thread.sleep(300);
+                // ── Unconditional zone update (pivot + S/R, always fires) ──────────
+                rsiAlertService.sendZoneUpdate(
+                    symbol, result.rsi(), currentPrice, support, resistance, pivots);
 
-                // Small pause to respect Yahoo Finance rate limits
+                // Respect Yahoo Finance rate limits
                 Thread.sleep(700);
 
             } catch (InterruptedException ie) {

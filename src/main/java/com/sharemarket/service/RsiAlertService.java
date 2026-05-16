@@ -41,11 +41,58 @@ public class RsiAlertService {
     @Value("${alert.cooldown-hours:4}")
     private int cooldownHours;
 
+    @Value("${alert.zone-update-cooldown-hours:4}")
+    private int zoneUpdateCooldownHours;
+
     // ── Cooldown tracking ─────────────────────────────────────────────────────
     // Key format:  "SYMBOL:DIRECTION"   e.g.  "BTC-USD:OVERBOUGHT"
-    private final Map<String, ZonedDateTime> lastAlertTime = new ConcurrentHashMap<>();
+    private final Map<String, ZonedDateTime> lastAlertTime      = new ConcurrentHashMap<>();
+    // Key format:  "SYMBOL"  — one entry per symbol for the unconditional zone update
+    private final Map<String, ZonedDateTime> lastZoneUpdateTime = new ConcurrentHashMap<>();
 
     // ── Public API ────────────────────────────────────────────────────────────
+
+    /**
+     * Always-fire zone update: sends pivot zone + S/R status on every scheduled
+     * run (subject to its own cooldown). Not conditional on RSI level.
+     *
+     * @param symbol     Yahoo Finance ticker
+     * @param rsi        current RSI (informational only)
+     * @param price      current close price
+     * @param support    4h support level
+     * @param resistance 4h resistance level
+     * @param pivots     Traditional Pivot Points (daily); may be null
+     */
+    public void sendZoneUpdate(String symbol, double rsi, double price,
+                                double support, double resistance,
+                                IndicatorService.PivotPoints pivots) {
+        ZonedDateTime now  = ZonedDateTime.now();
+        ZonedDateTime last = lastZoneUpdateTime.get(symbol);
+
+        if (last != null && now.isBefore(last.plusHours(zoneUpdateCooldownHours))) {
+            log.info("Skipping zone update for {} — cooldown active (last sent: {})", symbol, last);
+            return;
+        }
+
+        lastZoneUpdateTime.put(symbol, now);
+
+        String subject = buildZoneSubject(symbol, price, pivots);
+        String body    = buildZoneHtmlBody(symbol, rsi, price, support, resistance, pivots, now);
+
+        try {
+            MimeMessage msg = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(msg, true, "UTF-8");
+            helper.setFrom(emailFrom, emailFromName);
+            helper.setTo(emailTo);
+            helper.setSubject(subject);
+            helper.setText(body, true);
+            mailSender.send(msg);
+            log.info("Zone update sent → {} | Price={} | RSI={}", symbol,
+                String.format("%.4f", price), String.format("%.2f", rsi));
+        } catch (MailException | MessagingException | java.io.UnsupportedEncodingException e) {
+            log.error("Failed to send zone update for {}: {}", symbol, e.getMessage(), e);
+        }
+    }
 
     /**
      * Evaluates the RSI and sends an email alert if the threshold is crossed
@@ -195,6 +242,85 @@ public class RsiAlertService {
           .append("<p style='color:#555;margin-top:16px;'>").append(meaning).append("</p>")
           .append("<p style='color:#aaa;font-size:11px;'>This is an automated alert from your RSI Alert Bot. "
               + "Not financial advice.</p>")
+          .append("</body></html>");
+
+        return sb.toString();
+    }
+
+    // ── Zone update email helpers ─────────────────────────────────────────────
+
+    private String buildZoneSubject(String symbol, double price,
+                                     IndicatorService.PivotPoints pivots) {
+        String zone = "BETWEEN ZONES";
+        if (pivots != null) {
+            if (price >= pivots.r1()) zone = "🔴 IN RED ZONE (above R1)";
+            else if (price <= pivots.s4()) zone = "🔵 IN BLUE ZONE (below S4)";
+            else if (price >= pivots.p())  zone = "Above Pivot";
+            else                           zone = "Below Pivot";
+        }
+        return String.format("📊 Zone Update: %s $%.2f — %s", symbol, price, zone);
+    }
+
+    private String buildZoneHtmlBody(String symbol, double rsi, double price,
+                                      double support, double resistance,
+                                      IndicatorService.PivotPoints pivots,
+                                      ZonedDateTime timestamp) {
+        String timeStr = timestamp.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm z"));
+
+        // Determine current zone colour for the header
+        String zoneColor = "#34495e";
+        String zoneLabel = "Between Zones";
+        if (pivots != null) {
+            if (price >= pivots.r1())      { zoneColor = "#c0392b"; zoneLabel = "🔴 RED ZONE — Above R1 (Sell Zone)"; }
+            else if (price <= pivots.s4()) { zoneColor = "#2563eb"; zoneLabel = "🔵 BLUE ZONE — Below S4 (Buy Zone)"; }
+            else if (price >= pivots.p())  { zoneColor = "#e67e22"; zoneLabel = "Above Pivot (Neutral-Bullish)"; }
+            else                           { zoneColor = "#7f8c8d"; zoneLabel = "Below Pivot (Neutral-Bearish)"; }
+        }
+
+        String distToSupport = support > 0
+            ? String.format("%.2f <span style='color:#888;font-size:0.9em;'>(%.1f%% away)</span>",
+                support, ((price - support) / support) * 100.0) : "N/A";
+        String distToResistance = resistance > 0
+            ? String.format("%.2f <span style='color:#888;font-size:0.9em;'>(%.1f%% away)</span>",
+                resistance, ((resistance - price) / price) * 100.0) : "N/A";
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("<html><body style='font-family:Arial,sans-serif;padding:20px;max-width:500px;'>")
+          .append("<h2 style='color:").append(zoneColor).append(";'>Zone Update: ").append(symbol).append("</h2>")
+          .append("<p style='background:").append(zoneColor)
+          .append(";color:#fff;padding:8px 14px;border-radius:4px;font-weight:bold;'>")
+          .append(zoneLabel).append("</p>")
+          .append("<table style='border-collapse:collapse;width:100%;'>")
+          .append(sectionHeader("Current Status", "#34495e"))
+          .append(row("Symbol",        symbol))
+          .append(row("Current Price", String.format("<b>$%.4f</b>", price)))
+          .append(row("RSI (14)",      String.format("%.2f <span style='color:#888;font-size:0.9em;'>" +
+              "(oversold&le;30 / overbought&ge;80)</span>", rsi)))
+          .append(sectionHeader("4H Support &amp; Resistance", "#2c3e50"))
+          .append(row("Support (4H)",    distToSupport))
+          .append(row("Resistance (4H)", distToResistance));
+
+        if (pivots != null) {
+            sb.append(sectionHeader("🔴 Red Zone starts at R1 &nbsp;|&nbsp; 🔵 Blue Zone starts at S4", "#1a1a2e"));
+            sb.append(pivotRow("R5", pivots.r5(), price, false, false))
+              .append(pivotRow("R4", pivots.r4(), price, false, false))
+              .append(pivotRow("R3", pivots.r3(), price, false, false))
+              .append(pivotRow("R2", pivots.r2(), price, false, false))
+              .append(pivotRow("R1 🔴 Red Zone Start", pivots.r1(), price, false, true))
+              .append(pivotRow("P (Pivot)", pivots.p(), price, false, false))
+              .append(pivotRow("S1", pivots.s1(), price, false, false))
+              .append(pivotRow("S2", pivots.s2(), price, false, false))
+              .append(pivotRow("S3", pivots.s3(), price, false, false))
+              .append(pivotRow("S4 🔵 Blue Zone Start", pivots.s4(), price, true, false))
+              .append(pivotRow("S5", pivots.s5(), price, false, false));
+        }
+
+        sb.append(sectionHeader("Time", "#2c3e50"))
+          .append(row("Time (UTC)", timeStr))
+          .append("</table>")
+          .append("<p style='color:#aaa;font-size:11px;margin-top:16px;'>")
+          .append("Unconditional zone update — sent every ").append(zoneUpdateCooldownHours)
+          .append("h regardless of RSI level. Not financial advice.</p>")
           .append("</body></html>");
 
         return sb.toString();
