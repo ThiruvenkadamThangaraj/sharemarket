@@ -36,6 +36,18 @@ public class IndicatorService {
      */
     public record RSIResult(double rsi, double rsiMA, boolean enoughData) {}
 
+    /**
+     * Traditional Pivot Points calculated from the previous completed bar's H/L/C.
+     *
+     * Red zone (sell / resistance) begins at R1.
+     * Blue zone (buy  / support)  begins at S4.
+     */
+    public record PivotPoints(
+        double p,
+        double r1, double r2, double r3, double r4, double r5,
+        double s1, double s2, double s3, double s4, double s5
+    ) {}
+
     // ── Public methods ────────────────────────────────────────────────────────
 
     /**
@@ -82,6 +94,42 @@ public class IndicatorService {
         double resistance = window.stream().mapToDouble(OHLCData::getHigh).max().orElse(0.0);
 
         return new double[]{support, resistance};
+    }
+
+    /**
+     * Calculates Traditional Pivot Points from the previous completed bar's H/L/C.
+     * Pass daily bars so each bar represents one full trading session.
+     *
+     * Returns {@code null} if fewer than 2 bars are available.
+     */
+    public PivotPoints calculatePivotPoints(List<OHLCData> bars) {
+        if (bars == null || bars.size() < 2) {
+            return null;
+        }
+        // Use the second-to-last bar — the most recent fully completed session
+        OHLCData prev = bars.get(bars.size() - 2);
+        double h = prev.getHigh();
+        double l = prev.getLow();
+        double c = prev.getClose();
+
+        double p  = (h + l + c) / 3.0;
+        double r1 = 2 * p - l;
+        double r2 = p + (h - l);
+        double r3 = h + 2 * (p - l);
+        double r4 = h + 3 * (p - l);
+        double r5 = h + 4 * (p - l);
+        double s1 = 2 * p - h;
+        double s2 = p - (h - l);
+        double s3 = l - 2 * (h - p);
+        double s4 = l - 3 * (h - p);
+        double s5 = l - 4 * (h - p);
+
+        log.debug("Pivot Points | P={} R1={} R2={} S1={} S2={} S4={}",
+            String.format("%.2f", p),  String.format("%.2f", r1),
+            String.format("%.2f", r2), String.format("%.2f", s1),
+            String.format("%.2f", s2), String.format("%.2f", s4));
+
+        return new PivotPoints(p, r1, r2, r3, r4, r5, s1, s2, s3, s4, s5);
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────

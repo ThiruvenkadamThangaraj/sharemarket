@@ -47,10 +47,20 @@ public class HourlyRsiAlertJob {
     @Value("${alert.rsi.oversold:30}")
     private double oversoldThreshold;
 
-    // ── 1-hour candle fetch settings ──────────────────────────────────────────
+    // ── 1-hour candle fetch settings (RSI) ───────────────────────────────────
     // "5d" gives ~120 hourly bars — plenty for RSI-14 (needs 14 + 9 = 23 minimum)
     private static final String INTERVAL_1H = "1h";
     private static final String RANGE_5D    = "5d";
+
+    // ── 4-hour candle fetch settings (Support / Resistance) ───────────────────
+    // "3mo" gives ~540 4h bars — enough for a reliable swing high/low lookback
+    private static final String INTERVAL_4H = "4h";
+    private static final String RANGE_3MO   = "3mo";
+
+    // ── Daily candle fetch settings (Traditional Pivot Points) ───────────────
+    // "10d" gives ~10 daily bars — only need the previous completed session
+    private static final String INTERVAL_1D  = "1d";
+    private static final String RANGE_10D    = "10d";
 
     // ── Scheduled entry point ─────────────────────────────────────────────────
 
@@ -87,12 +97,35 @@ public class HourlyRsiAlertJob {
 
                 double currentPrice = bars.get(bars.size() - 1).getClose();
 
-                log.info("{} | 1h RSI={} | Price={}", symbol,
+                // Fetch 4h candles separately for support/resistance
+                List<OHLCData> bars4h = priceDataService.fetchOHLC(symbol, INTERVAL_4H, RANGE_3MO);
+                List<OHLCData> srBars = bars4h.isEmpty() ? bars : bars4h;
+
+                double[] sr          = indicatorService.calculateSupportResistance(
+                    srBars, marketConfig.getSupportResistanceLookback());
+                double support       = sr[0];
+                double resistance    = sr[1];
+
+                // Fetch daily bars for Traditional Pivot Points (P, R1-R5, S1-S5)
+                List<OHLCData> dailyBars = priceDataService.fetchOHLC(symbol, INTERVAL_1D, RANGE_10D);
+                IndicatorService.PivotPoints pivots =
+                    indicatorService.calculatePivotPoints(dailyBars);
+
+                log.info("{} | 1h RSI={} | Price={} | 4h Support={} | 4h Resistance={} | Pivot R1={} S4={}",
+                    symbol,
                     String.format("%.2f", result.rsi()),
-                    String.format("%.4f", currentPrice));
+                    String.format("%.4f", currentPrice),
+                    String.format("%.4f", support),
+                    String.format("%.4f", resistance),
+                    pivots != null ? String.format("%.4f", pivots.r1()) : "N/A",
+                    pivots != null ? String.format("%.4f", pivots.s4()) : "N/A");
 
                 rsiAlertService.evaluateAndAlert(
-                    symbol, result.rsi(), overboughtThreshold, oversoldThreshold, currentPrice);
+                    symbol, result.rsi(), overboughtThreshold, oversoldThreshold,
+                    currentPrice, support, resistance, pivots);
+
+                // Small pause to respect Yahoo Finance rate limits between the extra fetch
+                Thread.sleep(300);
 
                 // Small pause to respect Yahoo Finance rate limits
                 Thread.sleep(700);
