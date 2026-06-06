@@ -28,8 +28,8 @@ jobs:
           distribution: 'temurin'
           cache: maven          # Caches ~/.m2 between runs — speeds up subsequent builds
 
-      # ── 3. Build the jar (skip unit tests to keep it fast) ─────────────────
-      - name: Build jar
+      # ── 3. Build the main sharemarket jar (skip unit tests to keep it fast) ─
+      - name: Build sharemarket jar
         run: mvn package -q -DskipTests
 
       # ── 4. Run one-shot RSI alert check ─────────────────────────────────────
@@ -50,3 +50,22 @@ jobs:
             -Dalert.rsi.overbought=50 \
             -Dalert.rsi.oversold=50 \
             -jar target/sharemarket-1.0.0.jar
+
+      # ── 5. Build the crypto buy-signals jar ─────────────────────────────────
+      - name: Build crypto-buy-signals jar
+        run: mvn package -q -DskipTests -f crypto-buy-signals-service/pom.xml
+
+      # ── 6. Run one-shot crypto buy-signals report ────────────────────────────
+      # Uses the same GitHub Secrets — no separate credentials needed.
+      - name: Run crypto buy-signals report
+        env:
+          GMAIL_USER:          ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD:  ${{ secrets.GMAIL_APP_PASSWORD }}
+          ALERT_EMAIL_TO:      ${{ secrets.ALERT_EMAIL_TO }}
+        run: |
+          java \
+            -Dcrypto.run-on-startup=true \
+            -Dspring.mail.username="${GMAIL_USER}" \
+            -Dspring.mail.password="${GMAIL_APP_PASSWORD}" \
+            -Dalert.email.to="${ALERT_EMAIL_TO}" \
+            -jar crypto-buy-signals-service/target/crypto-buy-signals-service-1.0.0.jar
