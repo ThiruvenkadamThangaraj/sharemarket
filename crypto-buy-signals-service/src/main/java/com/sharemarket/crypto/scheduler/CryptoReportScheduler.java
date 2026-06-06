@@ -3,7 +3,6 @@ package com.sharemarket.crypto.scheduler;
 import com.sharemarket.crypto.config.CryptoFrameworkProperties;
 import com.sharemarket.crypto.model.CoinSignalResponse;
 import com.sharemarket.crypto.service.CryptoEmailReportService;
-import com.sharemarket.crypto.service.CryptoExcelReportService;
 import com.sharemarket.crypto.service.CryptoSignalAnalyzerService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -13,11 +12,8 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 /**
- * Runs at minute :01 of every hour, analyzes all configured symbols,
- * generates an Excel report, and emails it as an attachment.
- *
- * Schedule is configurable via {@code crypto.email.scheduler.cron}.
- * Default: every hour at minute 1  (same cadence as the RSI alert job).
+ * Runs at minute :01 of every hour, analyzes configured symbols,
+ * and emails the results as an HTML report (no attachment).
  */
 @Slf4j
 @Component
@@ -25,7 +21,6 @@ import java.util.List;
 public class CryptoReportScheduler {
 
     private final CryptoSignalAnalyzerService analyzerService;
-    private final CryptoExcelReportService    excelReportService;
     private final CryptoEmailReportService    emailReportService;
     private final CryptoFrameworkProperties   frameworkProperties;
 
@@ -40,10 +35,7 @@ public class CryptoReportScheduler {
             log.info("Analyzing {} symbols…", symbols.size());
 
             List<CoinSignalResponse> rows = analyzerService.analyze(symbols);
-            String reportPath = excelReportService.writeReport(rows);
-
-            log.info("Report written to: {}", reportPath);
-            emailReportService.sendReport(reportPath, rows);
+            emailReportService.sendReport(null, rows);
 
         } catch (Exception e) {
             log.error("Crypto report scheduler failed: {}", e.getMessage(), e);

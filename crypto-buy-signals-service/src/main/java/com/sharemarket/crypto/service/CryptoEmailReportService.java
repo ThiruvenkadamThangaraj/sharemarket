@@ -6,13 +6,11 @@ import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.FileSystemResource;
 import org.springframework.mail.MailException;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
-import java.io.File;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -40,22 +38,19 @@ public class CryptoEmailReportService {
     }
 
     /**
-     * Sends the Excel report at {@code reportPath} as an email attachment,
-     * with a short HTML summary of BUY signals in the body.
+     * Sends the crypto buy-signals report as an HTML email (no attachment).
      */
     public void sendReport(String reportPath, List<CoinSignalResponse> rows) {
         String subject = buildSubject(rows);
         String body    = buildHtmlBody(rows);
-        File   file    = new File(reportPath);
 
         try {
             MimeMessage msg = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(msg, true, "UTF-8");
+            MimeMessageHelper helper = new MimeMessageHelper(msg, false, "UTF-8");
             helper.setFrom(emailFrom, emailFromName);
             helper.setTo(emailTo);
             helper.setSubject(subject);
             helper.setText(body, true);
-            helper.addAttachment(file.getName(), new FileSystemResource(file));
             mailSender.send(msg);
             log.info("Crypto report email sent → {} | BUY signals: {}", emailTo,
                 rows.stream().filter(r -> r.decision() == Decision.BUY).count());
@@ -109,10 +104,10 @@ public class CryptoEmailReportService {
         // WAIT signals summary
         long waitCount = rows.stream().filter(r -> r.decision() == Decision.WAIT).count();
         sb.append("<p style='color:#888;margin-top:16px;'>").append(waitCount)
-            .append(" symbol(s) in WAIT — see attached Excel for full details.</p>");
+            .append(" symbol(s) in WAIT.</p>");
 
-        sb.append("<hr/><p style='font-size:11px;color:#aaa;'>")
-            .append("This is an automated report. Full data is attached as an Excel file.</p>");
+        sb.append("<hr/><p style='font-size:11px;color:#aaa;'>"
+            + "This is an automated hourly report.</p>");
         sb.append("</body></html>");
         return sb.toString();
     }
