@@ -74,7 +74,7 @@ public class CryptoEmailReportService {
 
         StringBuilder sb = new StringBuilder();
         sb.append("<html><body style='font-family:Arial,sans-serif;font-size:14px;'>");
-        sb.append("<h2 style='color:#1F497D;'>Crypto Buy Signals Report</h2>");
+        sb.append("<h2 style='color:#1F497D;'>Crypto Buy Sell Signals Report</h2>");
         sb.append("<p style='color:#555;'>Generated: ").append(ts).append("</p>");
 
         // ── SELL signals ──────────────────────────────────────────────────────
