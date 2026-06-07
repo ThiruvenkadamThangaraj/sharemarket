@@ -52,8 +52,9 @@ public class CryptoEmailReportService {
             helper.setSubject(subject);
             helper.setText(body, true);
             mailSender.send(msg);
-            log.info("Crypto report email sent → {} | BUY signals: {}", emailTo,
-                rows.stream().filter(r -> r.decision() == Decision.BUY).count());
+            log.info("Crypto report email sent → {} | BUY: {} | SELL: {}", emailTo,
+                rows.stream().filter(r -> r.decision() == Decision.BUY).count(),
+                rows.stream().filter(r -> r.decision() == Decision.SELL).count());
         } catch (MailException | MessagingException | java.io.UnsupportedEncodingException e) {
             log.error("Failed to send crypto report email: {}", e.getMessage(), e);
         }
@@ -62,10 +63,10 @@ public class CryptoEmailReportService {
     // ── Private helpers ───────────────────────────────────────────────────────
 
     private String buildSubject(List<CoinSignalResponse> rows) {
-        long buyCount = rows.stream().filter(r -> r.decision() == Decision.BUY).count();
+        long buyCount  = rows.stream().filter(r -> r.decision() == Decision.BUY).count();
+        long sellCount = rows.stream().filter(r -> r.decision() == Decision.SELL).count();
         String ts = ZonedDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm z"));
-        return String.format("Crypto Buy Signals Report — %d BUY signal%s | %s",
-            buyCount, buyCount == 1 ? "" : "s", ts);
+        return String.format("Crypto Signals — %d BUY | %d SELL | %s", buyCount, sellCount, ts);
     }
 
     private String buildHtmlBody(List<CoinSignalResponse> rows) {
@@ -76,7 +77,56 @@ public class CryptoEmailReportService {
         sb.append("<h2 style='color:#1F497D;'>Crypto Buy Signals Report</h2>");
         sb.append("<p style='color:#555;'>Generated: ").append(ts).append("</p>");
 
-        // BUY signals table
+        // ── SELL signals ──────────────────────────────────────────────────────
+        List<CoinSignalResponse> sells = rows.stream()
+            .filter(r -> r.decision() == Decision.SELL)
+            .toList();
+
+        if (!sells.isEmpty()) {
+            sb.append("<h3 style='color:#cc0000;'>&#x1F534; SELL Signals (").append(sells.size()).append(")</h3>");
+            sb.append("<table border='1' cellpadding='6' cellspacing='0' style='border-collapse:collapse;'>");
+            sb.append("<tr style='background:#cc0000;color:white;'>");
+            sb.append("<th>Symbol</th><th>Price</th><th>Sell Target</th><th>RSI</th><th>Above All MAs</th><th>Reason</th>");
+            sb.append("</tr>");
+            for (CoinSignalResponse r : sells) {
+                sb.append("<tr style='background:#ffebee;'>");
+                sb.append("<td><b>").append(r.symbol()).append("</b></td>");
+                sb.append("<td>").append(String.format("%.4f", r.currentPrice())).append("</td>");
+                sb.append("<td>").append(r.sellTarget() != null
+                    ? String.format("%.4f", r.sellTarget()) : "—").append("</td>");
+                sb.append("<td>").append(String.format("%.2f", r.rsi())).append("</td>");
+                sb.append("<td>").append(r.aboveAllMAs() ? "YES" : "NO").append("</td>");
+                sb.append("<td style='font-size:12px;'>").append(r.reason()).append("</td>");
+                sb.append("</tr>");
+            }
+            sb.append("</table>");
+        }
+
+        // ── SELL_WATCH signals ────────────────────────────────────────────────
+        List<CoinSignalResponse> sellWatches = rows.stream()
+            .filter(r -> r.decision() == Decision.SELL_WATCH)
+            .toList();
+
+        if (!sellWatches.isEmpty()) {
+            sb.append("<h3 style='color:#e65c00;'>&#x1F7E0; SELL_WATCH Signals (").append(sellWatches.size()).append(")</h3>");
+            sb.append("<table border='1' cellpadding='6' cellspacing='0' style='border-collapse:collapse;'>");
+            sb.append("<tr style='background:#e65c00;color:white;'>");
+            sb.append("<th>Symbol</th><th>Price</th><th>Sell Target</th><th>RSI</th><th>Reason</th>");
+            sb.append("</tr>");
+            for (CoinSignalResponse r : sellWatches) {
+                sb.append("<tr style='background:#fff3e0;'>");
+                sb.append("<td><b>").append(r.symbol()).append("</b></td>");
+                sb.append("<td>").append(String.format("%.4f", r.currentPrice())).append("</td>");
+                sb.append("<td>").append(r.sellTarget() != null
+                    ? String.format("%.4f", r.sellTarget()) : "—").append("</td>");
+                sb.append("<td>").append(String.format("%.2f", r.rsi())).append("</td>");
+                sb.append("<td style='font-size:12px;'>").append(r.reason()).append("</td>");
+                sb.append("</tr>");
+            }
+            sb.append("</table>");
+        }
+
+        // ── BUY signals ───────────────────────────────────────────────────────
         List<CoinSignalResponse> buys = rows.stream()
             .filter(r -> r.decision() == Decision.BUY)
             .toList();

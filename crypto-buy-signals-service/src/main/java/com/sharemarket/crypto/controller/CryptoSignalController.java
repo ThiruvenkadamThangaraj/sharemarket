@@ -28,12 +28,12 @@ public class CryptoSignalController {
 
     @PostMapping("/analyze")
     public List<CoinSignalResponse> analyze(@Valid @RequestBody AnalyzeRequest request) {
-        return analyzerService.analyze(request.symbols());
+        return analyzerService.analyze(request.symbols(), request.sellTargets());
     }
 
     @PostMapping("/analyze/report")
     public ReportGenerationResponse analyzeAndGenerateReport(@Valid @RequestBody AnalyzeRequest request) {
-        List<CoinSignalResponse> rows = analyzerService.analyze(request.symbols());
+        List<CoinSignalResponse> rows = analyzerService.analyze(request.symbols(), request.sellTargets());
         String reportPath = reportService.writeReport(rows);
         return new ReportGenerationResponse(reportPath, rows.size());
     }

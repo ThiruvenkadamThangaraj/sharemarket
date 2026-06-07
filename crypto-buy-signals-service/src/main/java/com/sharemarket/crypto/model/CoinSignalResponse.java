@@ -16,6 +16,10 @@ public record CoinSignalResponse(
     String scenario,
     Decision decision,
     Strength strength,
-    String reason
+    String reason,
+    // ── Sell-signal fields ──────────────────────────────────────────────────
+    Double sellTarget,        // null when no profit target is configured
+    boolean profitTargetMet,  // true when currentPrice >= sellTarget
+    boolean aboveAllMAs       // true when price is above all three MAs (50/100/200)
 ) {
 }

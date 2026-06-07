@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -35,9 +36,20 @@ public class CryptoSignalAnalyzerService {
     }
 
     public List<CoinSignalResponse> analyze(List<String> symbols) {
+        return analyze(symbols, Map.of());
+    }
+
+    public List<CoinSignalResponse> analyze(List<String> symbols, Map<String, Double> sellTargets) {
         Set<String> allowedSymbols = properties.getAllowedSymbols().stream()
             .map(this::normalizeConfiguredSymbol)
             .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        // Normalize the sell-target keys so lookup works regardless of input casing
+        Map<String, Double> normalizedTargets = new HashMap<>();
+        if (sellTargets != null) {
+            sellTargets.forEach((k, v) -> normalizedTargets.put(
+                k.trim().toUpperCase(Locale.ROOT), v));
+        }
 
         List<CoinSignalResponse> responses = new ArrayList<>();
         for (String symbol : symbols) {
@@ -48,7 +60,7 @@ public class CryptoSignalAnalyzerService {
                         + String.join(", ", allowedSymbols)
                 );
             }
-            responses.add(analyzeOne(normalized));
+            responses.add(analyzeOne(normalized, normalizedTargets.get(normalized)));
         }
         return responses;
     }
@@ -79,7 +91,7 @@ public class CryptoSignalAnalyzerService {
         return normalized;
     }
 
-    private CoinSignalResponse analyzeOne(String symbol) {
+    private CoinSignalResponse analyzeOne(String symbol, Double sellTarget) {
         List<Candle> candles = priceDataClient.fetchCandles(symbol, properties.getInterval(), properties.getRange());
         if (candles.isEmpty()) {
             return new CoinSignalResponse(
@@ -96,7 +108,10 @@ public class CryptoSignalAnalyzerService {
                 "NO_DATA",
                 Decision.WAIT,
                 Strength.NONE,
-                "No market data returned from Yahoo Finance"
+                "No market data returned from Yahoo Finance",
+                sellTarget,
+                false,
+                false
             );
         }
 
@@ -126,7 +141,10 @@ public class CryptoSignalAnalyzerService {
                 "INSUFFICIENT_DATA",
                 Decision.WAIT,
                 Strength.NONE,
-                "Insufficient bars for reliable RSI/MA calculations"
+                "Insufficient bars for reliable RSI/MA calculations",
+                sellTarget,
+                false,
+                false
             );
         }
 
@@ -140,13 +158,17 @@ public class CryptoSignalAnalyzerService {
             }
         }
         boolean maSignalMet = maHits > 0;
+        boolean aboveAllMAs = maHits == 0;
+        boolean profitTargetMet = sellTarget != null && currentPrice >= sellTarget;
 
         DecisionEngine.DecisionResult decision = DecisionEngine.evaluate(
             athDiscountMet,
             rsiMet,
             maHits,
             rsi,
-            properties.getRsiSellThreshold()
+            properties.getRsiSellThreshold(),
+            currentPrice,
+            sellTarget
         );
 
         String reason = decision.reason();
@@ -185,7 +207,10 @@ public class CryptoSignalAnalyzerService {
             scenario,
             decision.decision(),
             decision.strength(),
-            reason
+            reason,
+            sellTarget,
+            profitTargetMet,
+            aboveAllMAs
         );
     }
 
@@ -203,6 +228,10 @@ public class CryptoSignalAnalyzerService {
                 case BASIC -> "ALL_CONDITIONS_MET (BASIC_BUY)";
                 default -> "ALL_CONDITIONS_MET";
             };
+        }
+
+        if (decision == Decision.SELL) {
+            return "SELL_SCENARIO";
         }
 
         if (decision == Decision.SELL_WATCH) {

@@ -34,7 +34,9 @@ public class CryptoExcelReportService {
     private static final String[] HEADERS = {
         "Symbol", "Current Price", "ATH", "50% ATH Threshold", "RSI",
         "MA 50", "MA 100", "MA 200", "MA Hits", "Scenario", "Decision", "Strength",
-        "ATH Signal", "RSI Signal", "MA Signal", "Reason"
+        "ATH Signal", "RSI Signal", "MA Signal",
+        "Sell Target", "Above All MAs", "Profit Target Met",
+        "Reason"
     };
 
     private final CryptoReportProperties reportProperties;
@@ -111,7 +113,17 @@ public class CryptoExcelReportService {
             putString(row, 12, yesNo(rowData.signalAthDiscountMet()), base);
             putString(row, 13, yesNo(rowData.signalRsiMet()), base);
             putString(row, 14, yesNo(rowData.signalMovingAverageMet()), base);
-            putString(row, 15, rowData.reason(), base);
+
+            // Sell-signal columns
+            if (rowData.sellTarget() != null) {
+                putDouble(row, 15, rowData.sellTarget(), number);
+            } else {
+                putString(row, 15, "—", base);
+            }
+            putString(row, 16, yesNo(rowData.aboveAllMAs()), base);
+            putString(row, 17, yesNo(rowData.profitTargetMet()), base);
+
+            putString(row, 18, rowData.reason(), base);
         }
     }
 
@@ -148,9 +160,10 @@ public class CryptoExcelReportService {
         addBorders(style);
 
         byte[] bg = switch (decision) {
-            case "BUY" -> rgb(0, 176, 80);
+            case "BUY"        -> rgb(0, 176, 80);
+            case "SELL"       -> rgb(192, 0, 0);
             case "SELL_WATCH" -> rgb(255, 102, 0);
-            default -> rgb(255, 192, 0);
+            default           -> rgb(255, 192, 0);
         };
 
         style.setFillForegroundColor(new XSSFColor(bg, null));
