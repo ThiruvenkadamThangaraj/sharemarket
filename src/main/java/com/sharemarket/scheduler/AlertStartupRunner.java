@@ -9,9 +9,18 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Component;
 
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+
 /**
  * Runs the hourly RSI alert check once immediately on startup, then forces
  * the application to exit so GitHub Actions jobs complete cleanly.
+ *
+ * Since the app is a one-shot process here (it exits right after this runs),
+ * the {@code @Scheduled} daily watchlist job never gets a chance to fire on
+ * its own — so this also piggybacks the daily watchlist check onto the one
+ * hourly run per day whose UTC hour is 0 (i.e. the 00:05 UTC GitHub Actions
+ * run, matching 8 PM ET during DST / 7 PM ET during standard time).
  *
  * Only active when {@code alert.run-on-startup=true}.
  */
@@ -29,6 +38,12 @@ public class AlertStartupRunner implements ApplicationRunner {
         log.info("alert.run-on-startup=true → running one-shot RSI alert check");
         try {
             hourlyRsiAlertJob.runHourlyRsiCheck();
+
+            if (ZonedDateTime.now(ZoneOffset.UTC).getHour() == 0) {
+                log.info("UTC hour is 0 → also running daily watchlist check (4H + Daily)");
+                hourlyRsiAlertJob.runDailyWatchlistCheck();
+            }
+
             log.info("One-shot RSI alert check complete — shutting down.");
         } finally {
             // Force exit so the scheduler threads don't keep the JVM alive.
