@@ -47,6 +47,10 @@ public class HourlyRsiAlertJob {
     @Value("${alert.rsi.oversold:30}")
     private double oversoldThreshold;
 
+    /** Symbols checked once a day on both the 4H and Daily chart. */
+    @Value("${watchlist.symbols:ETH-USD,TSLA,NVDA}")
+    private String watchlistSymbols;
+
     // ── 1-hour candle fetch settings (RSI) ───────────────────────────────────
     // "5d" gives ~120 hourly bars — plenty for RSI-14 (needs 14 + 9 = 23 minimum)
     private static final String INTERVAL_1H = "1h";
@@ -144,5 +148,82 @@ public class HourlyRsiAlertJob {
         log.info("────────────────────────────────────────");
         log.info("  Hourly RSI Alert Check — DONE");
         log.info("────────────────────────────────────────");
+    }
+
+    // ── Daily watchlist check (4H + Daily chart) ─────────────────────────────
+
+    /**
+     * Runs once per day for the watchlist symbols (default: ETH-USD, TSLA, NVDA),
+     * checking BOTH the 4-hour and Daily chart in a single combined report.
+     *
+     * The default cron ("0 0 0 * * *") fires at 00:00 UTC, which lands at:
+     *   - 8:00 PM US-Eastern during Daylight Saving Time (EDT, UTC-4)
+     *   - 7:00 PM US-Eastern during Standard Time (EST, UTC-5)
+     * i.e. exactly the requested check time in both cases, with no manual
+     * DST adjustment needed since a fixed UTC instant is used.
+     */
+    @Scheduled(cron = "${watchlist.scheduler.cron:0 0 0 * * *}")
+    public void runDailyWatchlistCheck() {
+        log.info("────────────────────────────────────────");
+        log.info("  Daily Watchlist Check (4H + Daily) — STARTED");
+        log.info("────────────────────────────────────────");
+
+        List<String> symbols = Arrays.stream(watchlistSymbols.split(","))
+            .map(String::trim)
+            .filter(s -> !s.isBlank())
+            .toList();
+
+        int rsiPeriod = marketConfig.getRsi().getPeriod();
+        int maPeriod  = marketConfig.getRsi().getMaPeriod();
+        int lookback  = marketConfig.getSupportResistanceLookback();
+
+        for (String symbol : symbols) {
+            try {
+                List<OHLCData> bars4h = priceDataService.fetchOHLC(symbol, INTERVAL_4H, RANGE_3MO);
+                Thread.sleep(700);
+                List<OHLCData> barsDay = priceDataService.fetchOHLC(symbol, INTERVAL_1D, RANGE_10D);
+                Thread.sleep(700);
+
+                RsiAlertService.TimeframeSnapshot fourHour = buildSnapshot("4-Hour", bars4h, rsiPeriod, maPeriod, lookback);
+                RsiAlertService.TimeframeSnapshot daily     = buildSnapshot("Daily", barsDay, rsiPeriod, maPeriod, lookback);
+
+                if (fourHour == null && daily == null) {
+                    log.warn("No usable data for {} on either timeframe — skipping.", symbol);
+                    continue;
+                }
+
+                IndicatorService.PivotPoints pivots = indicatorService.calculatePivotPoints(barsDay);
+                rsiAlertService.sendWatchlistReport(symbol, fourHour, daily, pivots);
+
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                log.warn("Daily watchlist check interrupted.");
+                break;
+            } catch (Exception e) {
+                log.error("Error checking watchlist symbol {}: {}", symbol, e.getMessage(), e);
+            }
+        }
+
+        log.info("────────────────────────────────────────");
+        log.info("  Daily Watchlist Check — DONE");
+        log.info("────────────────────────────────────────");
+    }
+
+    private RsiAlertService.TimeframeSnapshot buildSnapshot(String label, List<OHLCData> bars,
+                                                             int rsiPeriod, int maPeriod, int lookback) {
+        if (bars.isEmpty()) {
+            log.warn("No {} bars available — skipping that timeframe.", label);
+            return null;
+        }
+
+        IndicatorService.RSIResult result = indicatorService.calculateRSI(bars, rsiPeriod, maPeriod);
+        if (!result.enoughData()) {
+            log.warn("Not enough {} bars to compute RSI reliably.", label);
+            return null;
+        }
+
+        double price = bars.get(bars.size() - 1).getClose();
+        double[] sr  = indicatorService.calculateSupportResistance(bars, lookback);
+        return new RsiAlertService.TimeframeSnapshot(label, result.rsi(), price, sr[0], sr[1]);
     }
 }

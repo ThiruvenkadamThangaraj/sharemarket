@@ -52,6 +52,100 @@ public class RsiAlertService {
 
     // ── Public API ────────────────────────────────────────────────────────────
 
+    /** RSI + price + support/resistance snapshot for a single chart timeframe (e.g. "4-Hour", "Daily"). */
+    public record TimeframeSnapshot(String label, double rsi, double price, double support, double resistance) {}
+
+    /**
+     * Sends the once-daily combined watchlist report for a symbol, showing both
+     * the 4-Hour and Daily chart side by side. Either snapshot may be null if
+     * that timeframe's data was unavailable.
+     *
+     * @param symbol   Yahoo Finance ticker
+     * @param fourHour 4-hour chart snapshot; may be null
+     * @param daily    daily chart snapshot; may be null
+     * @param pivots   Traditional Pivot Points (daily); may be null
+     */
+    public void sendWatchlistReport(String symbol, TimeframeSnapshot fourHour, TimeframeSnapshot daily,
+                                     IndicatorService.PivotPoints pivots) {
+        ZonedDateTime now = ZonedDateTime.now();
+        String subject = buildWatchlistSubject(symbol, fourHour, daily);
+        String body    = buildWatchlistHtmlBody(symbol, fourHour, daily, pivots, now);
+
+        try {
+            MimeMessage msg = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(msg, true, "UTF-8");
+            helper.setFrom(emailFrom, emailFromName);
+            helper.setTo(emailTo);
+            helper.setSubject(subject);
+            helper.setText(body, true);
+            mailSender.send(msg);
+            log.info("Watchlist report sent → {}", symbol);
+        } catch (MailException | MessagingException | java.io.UnsupportedEncodingException e) {
+            log.error("Failed to send watchlist report for {}: {}", symbol, e.getMessage(), e);
+        }
+    }
+
+    private String buildWatchlistSubject(String symbol, TimeframeSnapshot fourHour, TimeframeSnapshot daily) {
+        double price = daily != null ? daily.price() : (fourHour != null ? fourHour.price() : 0);
+        return String.format("📈 Daily Watchlist: %s $%.2f — 4H & Daily Check", symbol, price);
+    }
+
+    private String buildWatchlistHtmlBody(String symbol, TimeframeSnapshot fourHour, TimeframeSnapshot daily,
+                                           IndicatorService.PivotPoints pivots, ZonedDateTime timestamp) {
+        String timeStr = timestamp.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm z"));
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("<html><body style='font-family:Arial,sans-serif;padding:20px;max-width:520px;'>")
+          .append("<h2 style='color:#34495e;'>Daily Watchlist: ").append(symbol).append("</h2>")
+          .append("<table style='border-collapse:collapse;width:100%;'>")
+          .append(sectionHeader("4-Hour Chart", "#2c3e50")).append(timeframeRows(fourHour))
+          .append(sectionHeader("Daily Chart", "#2c3e50")).append(timeframeRows(daily));
+
+        if (pivots != null) {
+            double refPrice = daily != null ? daily.price() : (fourHour != null ? fourHour.price() : 0);
+            sb.append(sectionHeader("🔴 Red Zone (Resistance) &nbsp;&nbsp;🔵 Blue Zone (Support)", "#1a1a2e"))
+              .append(pivotRow("R5", pivots.r5(), refPrice, false, false))
+              .append(pivotRow("R4", pivots.r4(), refPrice, false, false))
+              .append(pivotRow("R3", pivots.r3(), refPrice, false, false))
+              .append(pivotRow("R2", pivots.r2(), refPrice, false, false))
+              .append(pivotRow("R1 🔴 Red Zone Start", pivots.r1(), refPrice, false, true))
+              .append(pivotRow("P (Pivot)", pivots.p(), refPrice, false, false))
+              .append(pivotRow("S1", pivots.s1(), refPrice, false, false))
+              .append(pivotRow("S2", pivots.s2(), refPrice, false, false))
+              .append(pivotRow("S3", pivots.s3(), refPrice, false, false))
+              .append(pivotRow("S4 🔵 Blue Zone Start", pivots.s4(), refPrice, true, false))
+              .append(pivotRow("S5", pivots.s5(), refPrice, false, false));
+        }
+
+        sb.append(sectionHeader("Time", "#2c3e50"))
+          .append(row("Time (UTC)", timeStr))
+          .append("</table>")
+          .append("<p style='color:#aaa;font-size:11px;margin-top:16px;'>")
+          .append("Daily watchlist check — sent once per day at 8 PM ET (Daylight Saving) / "
+              + "7 PM ET (Standard Time). Not financial advice.</p>")
+          .append("</body></html>");
+
+        return sb.toString();
+    }
+
+    private String timeframeRows(TimeframeSnapshot snap) {
+        if (snap == null) {
+            return row("Status", "<span style='color:#c0392b;'>Data unavailable</span>");
+        }
+        String rsiColor = snap.rsi() >= 70 ? "#c0392b" : snap.rsi() <= 30 ? "#27ae60" : "#34495e";
+        String distToSupport = snap.support() > 0
+            ? String.format("%.2f <span style='color:#888;font-size:0.9em;'>(%.1f%% away)</span>",
+                snap.support(), ((snap.price() - snap.support()) / snap.support()) * 100.0) : "N/A";
+        String distToResistance = snap.resistance() > 0
+            ? String.format("%.2f <span style='color:#888;font-size:0.9em;'>(%.1f%% away)</span>",
+                snap.resistance(), ((snap.resistance() - snap.price()) / snap.price()) * 100.0) : "N/A";
+
+        return row("Price", String.format("<b>$%.4f</b>", snap.price()))
+            + row("RSI (14)", String.format("<b style='color:%s;'>%.2f</b>", rsiColor, snap.rsi()))
+            + row("Support", distToSupport)
+            + row("Resistance", distToResistance);
+    }
+
     /**
      * Always-fire zone update: sends pivot zone + S/R status on every scheduled
      * run (subject to its own cooldown). Not conditional on RSI level.
