@@ -52,8 +52,8 @@ public class RsiAlertService {
 
     // ── Public API ────────────────────────────────────────────────────────────
 
-    /** RSI + price + support/resistance snapshot for a single chart timeframe (e.g. "4-Hour", "Daily"). */
-    public record TimeframeSnapshot(String label, double rsi, double price, double support, double resistance) {}
+    /** RSI + RSI-MA + price + support/resistance snapshot for a single chart timeframe (e.g. "4-Hour", "Daily"). */
+    public record TimeframeSnapshot(String label, double rsi, double rsiMA, double price, double support, double resistance) {}
 
     /**
      * Sends the once-daily combined watchlist report for a symbol, showing both
@@ -141,7 +141,8 @@ public class RsiAlertService {
                 snap.resistance(), ((snap.resistance() - snap.price()) / snap.price()) * 100.0) : "N/A";
 
         return row("Price", String.format("<b>$%.4f</b>", snap.price()))
-            + row("RSI (14)", String.format("<b style='color:%s;'>%.2f</b>", rsiColor, snap.rsi()))
+            + row("RSI (14) — blue", String.format("<b style='color:%s;'>%.2f</b>", rsiColor, snap.rsi()))
+            + row("RSI MA (9) — yellow", String.format("<b style='color:#e5b400;'>%.2f</b>", snap.rsiMA()))
             + row("Support", distToSupport)
             + row("Resistance", distToResistance);
     }

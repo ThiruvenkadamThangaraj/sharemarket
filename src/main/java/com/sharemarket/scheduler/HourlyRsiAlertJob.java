@@ -224,6 +224,6 @@ public class HourlyRsiAlertJob {
 
         double price = bars.get(bars.size() - 1).getClose();
         double[] sr  = indicatorService.calculateSupportResistance(bars, lookback);
-        return new RsiAlertService.TimeframeSnapshot(label, result.rsi(), price, sr[0], sr[1]);
+        return new RsiAlertService.TimeframeSnapshot(label, result.rsi(), result.rsiMA(), price, sr[0], sr[1]);
     }
 }
