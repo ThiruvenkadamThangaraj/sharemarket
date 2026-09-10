@@ -25,7 +25,7 @@ import java.util.List;
  * pinned at an extreme for several consecutive hours.
  *
  * Symbols to watch are configured in application.properties:
- *   alert.symbols=BTC-USD,ETH-USD,AAPL,NVDA,TSLA,SPY
+ *   alert.symbols=ETH-USD,TSLA,NVDA
  */
 @Slf4j
 @Component
@@ -38,7 +38,7 @@ public class HourlyRsiAlertJob {
     private final MarketConfig      marketConfig;
 
     /** Symbols dedicated to hourly alerts — separate from the daily report list. */
-    @Value("${alert.symbols:BTC-USD,ETH-USD,AAPL,NVDA,TSLA,SPY}")
+    @Value("${alert.symbols:ETH-USD,TSLA,NVDA}")
     private String alertSymbols;
 
     @Value("${alert.rsi.overbought:80}")
