@@ -19,7 +19,7 @@ import java.time.ZonedDateTime;
  * Since the app is a one-shot process here (it exits right after this runs),
  * the {@code @Scheduled} daily watchlist job never gets a chance to fire on
  * its own — so this also piggybacks the daily watchlist check onto the one
- * hourly run per day whose UTC hour is 0 (i.e. the 00:05 UTC GitHub Actions
+ * daily run whose UTC hour is 0 (i.e. the 00:00 UTC GitHub Actions
  * run, matching 8 PM ET during DST / 7 PM ET during standard time).
  *
  * Only active when {@code alert.run-on-startup=true}.

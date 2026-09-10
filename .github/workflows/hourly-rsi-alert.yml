@@ -1,11 +1,11 @@
-name: Hourly RSI Alert
+name: Daily RSI Alert
 
 on:
-  # Runs at minute :05 of every hour, 24/7, on GitHub's servers.
+  # Runs at 00:00 UTC every day, which is 8 PM EDT / 7 PM EST.
   # Even if your computer is switched off, this will still fire.
   # Note: GitHub Actions cron uses UTC time.
   schedule:
-    - cron: '5 * * * *'
+    - cron: '0 0 * * *'
 
   # Lets you trigger a manual check from the GitHub Actions tab at any time.
   workflow_dispatch:
