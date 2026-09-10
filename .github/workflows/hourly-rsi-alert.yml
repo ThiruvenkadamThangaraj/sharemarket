@@ -32,10 +32,10 @@ jobs:
       - name: Build sharemarket jar
         run: mvn package -q -DskipTests
 
-      # ── 4. Run one-shot RSI alert check ─────────────────────────────────────
+      # ── 4. Run one-shot 4H + Daily chart reports ───────────────────────────
       # Credentials are injected from GitHub Secrets — they are NEVER stored
       # in source code or visible in logs.
-      - name: Run RSI alert check
+      - name: Run 4H and Daily chart reports
         env:
           GMAIL_USER:          ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASSWORD:  ${{ secrets.GMAIL_APP_PASSWORD }}

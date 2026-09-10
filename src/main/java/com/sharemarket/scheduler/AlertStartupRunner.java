@@ -9,18 +9,16 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Component;
 
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
 
 /**
- * Runs the hourly RSI alert check once immediately on startup, then forces
- * the application to exit so GitHub Actions jobs complete cleanly.
+ * Runs the daily 4H + Daily watchlist check once on startup, then forces the
+ * application to exit so GitHub Actions jobs complete cleanly.
  *
  * Since the app is a one-shot process here (it exits right after this runs),
  * the {@code @Scheduled} daily watchlist job never gets a chance to fire on
- * its own — so this also piggybacks the daily watchlist check onto the one
- * daily run whose UTC hour is 0 (i.e. the 00:00 UTC GitHub Actions
- * run, matching 8 PM ET during DST / 7 PM ET during standard time).
+ * its own, so the watchlist check is invoked directly. It reports only the
+ * 4-hour and Daily charts, matching 8 PM ET during DST / 7 PM ET during
+ * standard time when GitHub Actions runs at 00:00 UTC.
  *
  * Only active when {@code alert.run-on-startup=true}.
  */
@@ -35,16 +33,11 @@ public class AlertStartupRunner implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        log.info("alert.run-on-startup=true → running one-shot RSI alert check");
+        log.info("alert.run-on-startup=true → running one-shot 4H + Daily watchlist check");
         try {
-            hourlyRsiAlertJob.runHourlyRsiCheck();
+            hourlyRsiAlertJob.runDailyWatchlistCheck();
 
-            if (ZonedDateTime.now(ZoneOffset.UTC).getHour() == 0) {
-                log.info("UTC hour is 0 → also running daily watchlist check (4H + Daily)");
-                hourlyRsiAlertJob.runDailyWatchlistCheck();
-            }
-
-            log.info("One-shot RSI alert check complete — shutting down.");
+            log.info("One-shot 4H + Daily watchlist check complete — shutting down.");
         } finally {
             // Force exit so the scheduler threads don't keep the JVM alive.
             // This is required for GitHub Actions to finish the job cleanly.
