@@ -176,6 +176,7 @@ public class HourlyRsiAlertJob {
         int rsiPeriod = marketConfig.getRsi().getPeriod();
         int maPeriod  = marketConfig.getRsi().getMaPeriod();
         int lookback  = marketConfig.getSupportResistanceLookback();
+        List<RsiAlertService.WatchlistSnapshot> snapshots = new java.util.ArrayList<>();
 
         for (String symbol : symbols) {
             try {
@@ -193,7 +194,7 @@ public class HourlyRsiAlertJob {
                 }
 
                 IndicatorService.PivotPoints pivots = indicatorService.calculatePivotPoints(barsDay);
-                rsiAlertService.sendWatchlistReport(symbol, fourHour, daily, pivots);
+                snapshots.add(new RsiAlertService.WatchlistSnapshot(symbol, fourHour, daily, pivots));
 
             } catch (InterruptedException ie) {
                 Thread.currentThread().interrupt();
@@ -203,6 +204,8 @@ public class HourlyRsiAlertJob {
                 log.error("Error checking watchlist symbol {}: {}", symbol, e.getMessage(), e);
             }
         }
+
+        rsiAlertService.sendWatchlistReport(snapshots);
 
         log.info("────────────────────────────────────────");
         log.info("  Daily Watchlist Check — DONE");
