@@ -62,7 +62,7 @@ public class RsiAlertService {
                                     IndicatorService.PivotPoints pivots) {}
 
     /**
-     * Sends one once-daily email containing the combined 4-Hour and Daily
+    * Sends one once-daily email containing the combined 4-Hour and 1-Day
      * watchlist report for every symbol. Either timeframe snapshot may be null
      * if that timeframe's data was unavailable.
      *
@@ -94,7 +94,7 @@ public class RsiAlertService {
 
         private String buildWatchlistSubject(List<WatchlistSnapshot> snapshots) {
                 String symbols = snapshots.stream().map(WatchlistSnapshot::symbol).reduce((left, right) -> left + ", " + right).orElse("");
-                return String.format("📈 Daily Watchlist: %s — 4H & Daily Check", symbols);
+                return String.format("📈 Daily Watchlist: %s — 4H & 1-Day Check", symbols);
     }
 
         private String buildWatchlistHtmlBody(List<WatchlistSnapshot> snapshots, ZonedDateTime timestamp) {
@@ -102,7 +102,7 @@ public class RsiAlertService {
 
         StringBuilder sb = new StringBuilder();
         sb.append("<html><body style='font-family:Arial,sans-serif;padding:20px;max-width:520px;'>")
-                    .append("<h2 style='color:#34495e;'>Daily Watchlist: 4H + Daily Charts</h2>");
+                      .append("<h2 style='color:#34495e;'>Daily Watchlist: 4H + 1-Day Charts</h2>");
 
                 for (WatchlistSnapshot snapshot : snapshots) {
                         TimeframeSnapshot fourHour = snapshot.fourHour();
@@ -114,7 +114,7 @@ public class RsiAlertService {
                             .append(snapshot.symbol()).append("</h3>")
                             .append("<table style='border-collapse:collapse;width:100%;'>")
                             .append(sectionHeader("4-Hour Chart", "#2c3e50")).append(timeframeRows(fourHour))
-                            .append(sectionHeader("Daily Chart", "#2c3e50")).append(timeframeRows(daily));
+                              .append(sectionHeader("1-Day Chart", "#2c3e50")).append(timeframeRows(daily));
 
                         if (pivots != null) {
                                 sb.append(sectionHeader("🔴 Red Zone (Resistance) &nbsp;&nbsp;🔵 Blue Zone (Support)", "#1a1a2e"))
