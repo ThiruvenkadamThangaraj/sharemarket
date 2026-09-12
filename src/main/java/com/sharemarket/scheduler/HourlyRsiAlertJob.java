@@ -25,7 +25,7 @@ import java.util.List;
  * pinned at an extreme for several consecutive hours.
  *
  * Symbols to watch are configured in application.properties:
- *   alert.symbols=ETH-USD,TSLA,NVDA
+ *   alert.symbols=ETH-USD,TSLA,NVDA,IAU
  */
 @Slf4j
 @Component
@@ -38,7 +38,7 @@ public class HourlyRsiAlertJob {
     private final MarketConfig      marketConfig;
 
     /** Symbols dedicated to hourly alerts — separate from the daily report list. */
-    @Value("${alert.symbols:ETH-USD,TSLA,NVDA}")
+    @Value("${alert.symbols:ETH-USD,TSLA,NVDA,IAU}")
     private String alertSymbols;
 
     @Value("${alert.rsi.overbought:80}")
@@ -48,7 +48,7 @@ public class HourlyRsiAlertJob {
     private double oversoldThreshold;
 
     /** Symbols checked once a day on both the 4H and Daily chart. */
-    @Value("${watchlist.symbols:ETH-USD,TSLA,NVDA}")
+    @Value("${watchlist.symbols:ETH-USD,TSLA,NVDA,IAU}")
     private String watchlistSymbols;
 
     // ── 1-hour candle fetch settings (RSI) ───────────────────────────────────
@@ -153,7 +153,7 @@ public class HourlyRsiAlertJob {
     // ── Daily watchlist check (4H + Daily chart) ─────────────────────────────
 
     /**
-     * Runs once per day for the watchlist symbols (default: ETH-USD, TSLA, NVDA),
+     * Runs once per day for the watchlist symbols (default: ETH-USD, TSLA, NVDA, IAU),
      * checking BOTH the 4-hour and Daily chart in a single combined report.
      *
      * The default cron ("0 0 0 * * *") fires at 00:00 UTC, which lands at:
