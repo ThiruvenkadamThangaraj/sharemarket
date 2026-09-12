@@ -193,8 +193,9 @@ public class HourlyRsiAlertJob {
                     continue;
                 }
 
-                IndicatorService.PivotPoints pivots = indicatorService.calculatePivotPoints(barsDay);
-                snapshots.add(new RsiAlertService.WatchlistSnapshot(symbol, fourHour, daily, pivots));
+                IndicatorService.PivotPoints pivots   = indicatorService.calculatePivotPoints(barsDay);
+                IndicatorService.PivotPoints pivots4h = indicatorService.calculatePivotPoints(bars4h);
+                snapshots.add(new RsiAlertService.WatchlistSnapshot(symbol, fourHour, daily, pivots, pivots4h));
 
             } catch (InterruptedException ie) {
                 Thread.currentThread().interrupt();

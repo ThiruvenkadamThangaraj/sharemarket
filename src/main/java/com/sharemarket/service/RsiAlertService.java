@@ -59,7 +59,8 @@ public class RsiAlertService {
     /** Complete 4H + Daily watchlist data for one symbol. */
     public record WatchlistSnapshot(String symbol, TimeframeSnapshot fourHour,
                                     TimeframeSnapshot daily,
-                                    IndicatorService.PivotPoints pivots) {}
+                                    IndicatorService.PivotPoints pivots,
+                                    IndicatorService.PivotPoints pivots4h) {}
 
     /**
     * Sends one once-daily email containing the combined 4-Hour and 1-Day
@@ -107,29 +108,16 @@ public class RsiAlertService {
                 for (WatchlistSnapshot snapshot : snapshots) {
                         TimeframeSnapshot fourHour = snapshot.fourHour();
                         TimeframeSnapshot daily = snapshot.daily();
-                        IndicatorService.PivotPoints pivots = snapshot.pivots();
-                        double refPrice = daily != null ? daily.price() : (fourHour != null ? fourHour.price() : 0);
+                        double fourHourPrice = fourHour != null ? fourHour.price() : 0;
+                        double dailyPrice = daily != null ? daily.price() : (fourHour != null ? fourHour.price() : 0);
 
                         sb.append("<h3 style='color:#34495e;margin-top:24px;'>")
                             .append(snapshot.symbol()).append("</h3>")
                             .append("<table style='border-collapse:collapse;width:100%;'>")
                             .append(sectionHeader("4-Hour Chart", "#2c3e50")).append(timeframeRows(fourHour))
-                              .append(sectionHeader("1-Day Chart", "#2c3e50")).append(timeframeRows(daily));
-
-                        if (pivots != null) {
-                                sb.append(sectionHeader("🔴 Red Zone (Resistance) &nbsp;&nbsp;🔵 Blue Zone (Support)", "#1a1a2e"))
-                                    .append(pivotRow("R5", pivots.r5(), refPrice, false, false))
-                                    .append(pivotRow("R4", pivots.r4(), refPrice, false, false))
-                                    .append(pivotRow("R3", pivots.r3(), refPrice, false, false))
-                                    .append(pivotRow("R2", pivots.r2(), refPrice, false, false))
-                                    .append(pivotRow("R1 🔴 Red Zone Start", pivots.r1(), refPrice, false, true))
-                                    .append(pivotRow("P (Pivot)", pivots.p(), refPrice, false, false))
-                                    .append(pivotRow("S1", pivots.s1(), refPrice, false, false))
-                                    .append(pivotRow("S2", pivots.s2(), refPrice, false, false))
-                                    .append(pivotRow("S3", pivots.s3(), refPrice, false, false))
-                                    .append(pivotRow("S4 🔵 Blue Zone Start", pivots.s4(), refPrice, true, false))
-                                    .append(pivotRow("S5", pivots.s5(), refPrice, false, false));
-                        }
+                            .append(pivotZoneSection(snapshot.pivots4h(), fourHourPrice))
+                            .append(sectionHeader("1-Day Chart", "#2c3e50")).append(timeframeRows(daily))
+                            .append(pivotZoneSection(snapshot.pivots(), dailyPrice));
                         sb.append("</table>");
         }
 
@@ -435,6 +423,25 @@ public class RsiAlertService {
           .append("</body></html>");
 
         return sb.toString();
+    }
+
+    /** Renders the Red/Blue pivot zone table for one timeframe, or empty string if pivots are unavailable. */
+    private String pivotZoneSection(IndicatorService.PivotPoints pivots, double refPrice) {
+        if (pivots == null) {
+            return "";
+        }
+        return sectionHeader("🔴 Red Zone (Resistance) &nbsp;&nbsp;🔵 Blue Zone (Support)", "#1a1a2e")
+            + pivotRow("R5", pivots.r5(), refPrice, false, false)
+            + pivotRow("R4", pivots.r4(), refPrice, false, false)
+            + pivotRow("R3", pivots.r3(), refPrice, false, false)
+            + pivotRow("R2", pivots.r2(), refPrice, false, false)
+            + pivotRow("R1 🔴 Red Zone Start", pivots.r1(), refPrice, false, true)
+            + pivotRow("P (Pivot)", pivots.p(), refPrice, false, false)
+            + pivotRow("S1", pivots.s1(), refPrice, false, false)
+            + pivotRow("S2", pivots.s2(), refPrice, false, false)
+            + pivotRow("S3", pivots.s3(), refPrice, false, false)
+            + pivotRow("S4 🔵 Blue Zone Start", pivots.s4(), refPrice, true, false)
+            + pivotRow("S5", pivots.s5(), refPrice, false, false);
     }
 
     /** Renders a pivot level row, optionally highlighted as the red or blue zone boundary. */
