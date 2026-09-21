@@ -13,6 +13,7 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Fetches daily OHLCV bars from the Yahoo Finance v8 chart API.
@@ -44,8 +45,9 @@ public class PriceDataService {
      * @param range    e.g. "3mo"
      */
     public List<OHLCData> fetchOHLC(String symbol, String interval, String range) {
-        String url = String.format(YAHOO_URL, symbol, interval, range);
-        log.info("Fetching OHLC for {} (interval={}, range={})", symbol, interval, range);
+        String normalizedSymbol = normalizeYahooSymbol(symbol);
+        String url = String.format(YAHOO_URL, normalizedSymbol, interval, range);
+        log.info("Fetching OHLC for {} (normalized={}, interval={}, range={})", symbol, normalizedSymbol, interval, range);
 
         try {
             HttpRequest request = HttpRequest.newBuilder()
@@ -74,6 +76,27 @@ public class PriceDataService {
             log.error("Failed to fetch data for {}: {}", symbol, e.getMessage());
             return List.of();
         }
+    }
+
+    private String normalizeYahooSymbol(String symbol) {
+        if (symbol == null || symbol.isBlank()) {
+            return "";
+        }
+
+        String normalized = symbol.trim();
+        String upper = normalized.toUpperCase(Locale.ROOT).replace(" ", "");
+
+        if ("BTCUSDT".equals(upper)) {
+            return "BTC-USD";
+        }
+        if ("ETHUSDT".equals(upper)) {
+            return "ETH-USD";
+        }
+        if (upper.endsWith(".B")) {
+            return upper.substring(0, upper.length() - 2) + "-B";
+        }
+
+        return normalized;
     }
 
     // ── JSON parsing ──────────────────────────────────────────────────────────
