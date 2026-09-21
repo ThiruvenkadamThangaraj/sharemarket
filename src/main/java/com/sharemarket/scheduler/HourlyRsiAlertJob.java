@@ -38,7 +38,7 @@ public class HourlyRsiAlertJob {
     private final MarketConfig      marketConfig;
 
     /** Symbols dedicated to hourly alerts — separate from the daily report list. */
-    @Value("${alert.symbols:ETH-USD,TSLA,NVDA,IAU,AAPL,MSFT,AMZN,GOOGL,META,AVGO,JPM,BRK.B}")
+    @Value("${alert.symbols:BTCUSDT,ETH-USD,TSLA,NVDA,IAU,AAPL,MSFT,AMZN,GOOGL,META,AVGO,JPM,BRK.B}")
     private String alertSymbols;
 
     @Value("${alert.rsi.overbought:80}")
@@ -48,7 +48,7 @@ public class HourlyRsiAlertJob {
     private double oversoldThreshold;
 
     /** Symbols checked once a day on both the 4H and Daily chart. */
-    @Value("${watchlist.symbols:ETH-USD,TSLA,NVDA,IAU,AAPL,MSFT,AMZN,GOOGL,META,AVGO,JPM,BRK.B}")
+    @Value("${watchlist.symbols:BTCUSDT,ETH-USD,TSLA,NVDA,IAU,AAPL,MSFT,AMZN,GOOGL,META,AVGO,JPM,BRK.B}")
     private String watchlistSymbols;
 
     // ── 1-hour candle fetch settings (RSI) ───────────────────────────────────
