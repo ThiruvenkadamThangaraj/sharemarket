@@ -179,22 +179,33 @@ public class HourlyRsiAlertJob {
         List<RsiAlertService.WatchlistSnapshot> snapshots = new java.util.ArrayList<>();
 
         for (String symbol : symbols) {
+            RsiAlertService.TimeframeSnapshot fourHour = null;
+            RsiAlertService.TimeframeSnapshot daily = null;
+            IndicatorService.PivotPoints pivots = null;
+            IndicatorService.PivotPoints pivots4h = null;
+            List<OHLCData> bars4h = List.of();
+            List<OHLCData> barsDay = List.of();
+
             try {
-                List<OHLCData> bars4h = priceDataService.fetchOHLC(symbol, INTERVAL_4H, RANGE_3MO);
+                bars4h = priceDataService.fetchOHLC(symbol, INTERVAL_4H, RANGE_3MO);
                 Thread.sleep(700);
-                List<OHLCData> barsDay = priceDataService.fetchOHLC(symbol, INTERVAL_1D, RANGE_10D);
+                barsDay = priceDataService.fetchOHLC(symbol, INTERVAL_1D, RANGE_10D);
                 Thread.sleep(700);
 
-                RsiAlertService.TimeframeSnapshot fourHour = buildSnapshot("4-Hour", bars4h, rsiPeriod, maPeriod, lookback);
-                RsiAlertService.TimeframeSnapshot daily     = buildSnapshot("Daily", barsDay, rsiPeriod, maPeriod, lookback);
+                fourHour = buildSnapshot("4-Hour", bars4h, rsiPeriod, maPeriod, lookback);
+                daily = buildSnapshot("Daily", barsDay, rsiPeriod, maPeriod, lookback);
 
-                if (fourHour == null && daily == null) {
-                    log.warn("No usable data for {} on either timeframe — skipping.", symbol);
-                    continue;
+                if (!barsDay.isEmpty()) {
+                    pivots = indicatorService.calculatePivotPoints(barsDay);
+                }
+                if (!bars4h.isEmpty()) {
+                    pivots4h = indicatorService.calculatePivotPoints(bars4h);
                 }
 
-                IndicatorService.PivotPoints pivots   = indicatorService.calculatePivotPoints(barsDay);
-                IndicatorService.PivotPoints pivots4h = indicatorService.calculatePivotPoints(bars4h);
+                if (fourHour == null && daily == null) {
+                    log.warn("No usable data for {} on either timeframe — keeping symbol in report as unavailable.", symbol);
+                }
+
                 snapshots.add(new RsiAlertService.WatchlistSnapshot(symbol, fourHour, daily, pivots, pivots4h));
 
             } catch (InterruptedException ie) {
@@ -203,6 +214,7 @@ public class HourlyRsiAlertJob {
                 break;
             } catch (Exception e) {
                 log.error("Error checking watchlist symbol {}: {}", symbol, e.getMessage(), e);
+                snapshots.add(new RsiAlertService.WatchlistSnapshot(symbol, null, null, null, null));
             }
         }
 
