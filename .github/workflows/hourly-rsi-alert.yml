@@ -39,9 +39,11 @@ jobs:
           GMAIL_USER:          ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASSWORD:  ${{ secrets.GMAIL_APP_PASSWORD }}
           ALERT_EMAIL_TO:      ${{ secrets.ALERT_EMAIL_TO }}
+          FORCE_SEND:          ${{ github.event_name == 'workflow_dispatch' && 'true' || 'false' }}
         run: |
           java \
             -Dalert.run-on-startup=true \
+            -Dalert.run-on-startup.force="${FORCE_SEND}" \
             -Dmarket.run-on-startup=false \
             -Dspring.mail.username="${GMAIL_USER}" \
             -Dspring.mail.password="${GMAIL_APP_PASSWORD}" \

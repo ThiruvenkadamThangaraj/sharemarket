@@ -32,12 +32,18 @@ public class AlertStartupRunner implements ApplicationRunner {
     private final HourlyRsiAlertJob hourlyRsiAlertJob;
     private final ApplicationContext applicationContext;
 
+    @Value("${alert.run-on-startup.force:false}")
+    private boolean forceSend;
+
     @Override
     public void run(ApplicationArguments args) {
         ZonedDateTime utcNow = ZonedDateTime.now(ZoneId.of("UTC"));
         ZonedDateTime easternNow = utcNow.withZoneSameInstant(ZoneId.of("America/New_York"));
         try {
-            if (utcNow.getHour() % 4 == 0) {
+            if (forceSend) {
+                log.info("Forced one-shot run requested — sending the combined watchlist report now");
+                hourlyRsiAlertJob.runDailyWatchlistCheck();
+            } else if (utcNow.getHour() % 4 == 0) {
                 hourlyRsiAlertJob.runCryptoRsiCheck();
             }
 
