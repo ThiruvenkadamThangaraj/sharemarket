@@ -15,17 +15,18 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Runs at minute :01 of every hour, fetches 1-hour candles from Yahoo Finance
+ * Runs every four hours, fetches candles from Yahoo Finance
  * (free, no API key), computes RSI-14, and fires email alerts when:
  *
  *   RSI >= alert.rsi.overbought  (default 80) — potential reversal / sell zone
  *   RSI <= alert.rsi.oversold    (default 30) — potential bounce  / buy zone
  *
- * A per-symbol cooldown (default 4 h) prevents inbox flooding when RSI stays
- * pinned at an extreme for several consecutive hours.
+ * Crypto and stock schedules are separate: crypto runs around the clock, while
+ * stocks run only during the US market session.
  *
  * Symbols to watch are configured in application.properties:
- *   alert.symbols=ETH-USD,TSLA,NVDA,IAU
+ *   crypto.alert.symbols=ETH-USD,BTCUSDT
+ *   stock.alert.symbols=TSLA,NVDA,AAPL
  */
 @Slf4j
 @Component
@@ -37,9 +38,11 @@ public class HourlyRsiAlertJob {
     private final RsiAlertService   rsiAlertService;
     private final MarketConfig      marketConfig;
 
-    /** Symbols dedicated to hourly alerts — separate from the daily report list. */
-    @Value("${alert.symbols:BTCUSDT,ETH-USD,TSLA,NVDA,IAU,AAPL,MSFT,AMZN,GOOGL,META,AVGO,JPM,BRK.B}")
-    private String alertSymbols;
+    @Value("${crypto.alert.symbols:ETH-USD,BTCUSDT}")
+    private String cryptoAlertSymbols;
+
+    @Value("${stock.alert.symbols:TSLA,NVDA,IAU,AAPL,MSFT,AMZN,GOOGL,META,AVGO,JPM,BRK.B}")
+    private String stockAlertSymbols;
 
     @Value("${alert.rsi.overbought:80}")
     private double overboughtThreshold;
@@ -68,13 +71,23 @@ public class HourlyRsiAlertJob {
 
     // ── Scheduled entry point ─────────────────────────────────────────────────
 
-    @Scheduled(cron = "${alert.scheduler.cron:0 1 * * * *}")
-    public void runHourlyRsiCheck() {
+    @Scheduled(cron = "${crypto.alert.scheduler.cron:0 1 0/4 * * *}", zone = "UTC")
+    public void runCryptoRsiCheck() {
+        runRsiCheck(cryptoAlertSymbols, "Crypto", INTERVAL_4H, RANGE_3MO);
+    }
+
+    @Scheduled(cron = "${stock.alert.scheduler.cron:0 1 10,14 * * MON-FRI}", zone = "America/New_York")
+    public void runStockRsiCheck() {
+        runRsiCheck(stockAlertSymbols, "Stock", INTERVAL_4H, RANGE_3MO);
+    }
+
+    private void runRsiCheck(String configuredSymbols, String marketType,
+                             String chartInterval, String chartRange) {
         log.info("────────────────────────────────────────");
-        log.info("  Hourly RSI Alert Check — STARTED");
+        log.info("  {} Four-hour RSI Alert Check — STARTED", marketType);
         log.info("────────────────────────────────────────");
 
-        List<String> symbols = Arrays.stream(alertSymbols.split(","))
+        List<String> symbols = Arrays.stream(configuredSymbols.split(","))
             .map(String::trim)
             .filter(s -> !s.isBlank())
             .toList();
@@ -84,7 +97,7 @@ public class HourlyRsiAlertJob {
 
         for (String symbol : symbols) {
             try {
-                List<OHLCData> bars = priceDataService.fetchOHLC(symbol, INTERVAL_1H, RANGE_5D);
+                List<OHLCData> bars = priceDataService.fetchOHLC(symbol, chartInterval, chartRange);
 
                 if (bars.isEmpty()) {
                     log.warn("No data returned for {} — skipping alert check.", symbol);
@@ -115,8 +128,9 @@ public class HourlyRsiAlertJob {
                 IndicatorService.PivotPoints pivots =
                     indicatorService.calculatePivotPoints(dailyBars);
 
-                log.info("{} | 1h RSI={} | Price={} | 4h Support={} | 4h Resistance={} | Pivot R1={} S4={}",
+                log.info("{} | {} RSI={} | Price={} | 4h Support={} | 4h Resistance={} | Pivot R1={} S4={}",
                     symbol,
+                    chartInterval,
                     String.format("%.2f", result.rsi()),
                     String.format("%.4f", currentPrice),
                     String.format("%.4f", support),
@@ -138,7 +152,7 @@ public class HourlyRsiAlertJob {
 
             } catch (InterruptedException ie) {
                 Thread.currentThread().interrupt();
-                log.warn("Hourly RSI check interrupted.");
+                log.warn("{} four-hour RSI check interrupted.", marketType);
                 break;
             } catch (Exception e) {
                 log.error("Error checking RSI for {}: {}", symbol, e.getMessage(), e);
@@ -146,7 +160,7 @@ public class HourlyRsiAlertJob {
         }
 
         log.info("────────────────────────────────────────");
-        log.info("  Hourly RSI Alert Check — DONE");
+        log.info("  {} Four-hour RSI Alert Check — DONE", marketType);
         log.info("────────────────────────────────────────");
     }
 
@@ -156,13 +170,10 @@ public class HourlyRsiAlertJob {
      * Runs once per day for the watchlist symbols (default: ETH-USD, TSLA, NVDA, IAU),
      * checking BOTH the 4-hour and Daily chart in a single combined report.
      *
-     * The default cron ("0 0 0 * * *") fires at 00:00 UTC, which lands at:
-     *   - 8:00 PM US-Eastern during Daylight Saving Time (EDT, UTC-4)
-     *   - 7:00 PM US-Eastern during Standard Time (EST, UTC-5)
-     * i.e. exactly the requested check time in both cases, with no manual
-     * DST adjustment needed since a fixed UTC instant is used.
+    * The default cron fires at 8:00 AM America/New_York, with daylight saving
+    * time handled by the scheduler zone.
      */
-    @Scheduled(cron = "${watchlist.scheduler.cron:0 0 0 * * *}")
+    @Scheduled(cron = "${watchlist.scheduler.cron:0 0 8 * * *}", zone = "America/New_York")
     public void runDailyWatchlistCheck() {
         log.info("────────────────────────────────────────");
         log.info("  Daily Watchlist Check (4H + Daily) — STARTED");
