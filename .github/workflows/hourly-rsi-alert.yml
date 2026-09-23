@@ -1,11 +1,10 @@
 name: Daily RSI Alert
 
 on:
-  # Runs at 00:00 UTC every day, which is 8 PM EDT / 7 PM EST.
-  # Even if your computer is switched off, this will still fire.
-  # Note: GitHub Actions cron uses UTC time.
+  # Wakes hourly so the one-shot runner can select the crypto, stock, or
+  # 8:00 AM America/New_York task that is due. GitHub Actions cron uses UTC.
   schedule:
-    - cron: '0 0 * * *'
+    - cron: '0 * * * *'
 
   # Lets you trigger a manual check from the GitHub Actions tab at any time.
   workflow_dispatch:

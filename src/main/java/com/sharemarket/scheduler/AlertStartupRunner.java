@@ -9,16 +9,17 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Component;
 
+import java.time.DayOfWeek;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 
 /**
- * Runs the daily 4H + Daily watchlist check once on startup, then forces the
+ * Runs the appropriate one-shot alert task on startup, then forces the
  * application to exit so GitHub Actions jobs complete cleanly.
  *
- * Since the app is a one-shot process here (it exits right after this runs),
- * the {@code @Scheduled} daily watchlist job never gets a chance to fire on
- * its own, so the watchlist check is invoked directly. It reports only the
- * 4-hour and Daily charts, matching 8 PM ET during DST / 7 PM ET during
- * standard time when GitHub Actions runs at 00:00 UTC.
+ * Since the app is a one-shot process here, scheduled methods never get a
+ * chance to fire on their own. GitHub Actions wakes the app hourly and this
+ * runner invokes the task due at the current UTC/Eastern time.
  *
  * Only active when {@code alert.run-on-startup=true}.
  */
@@ -33,11 +34,25 @@ public class AlertStartupRunner implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        log.info("alert.run-on-startup=true → running one-shot 4H + Daily watchlist check");
+        ZonedDateTime utcNow = ZonedDateTime.now(ZoneId.of("UTC"));
+        ZonedDateTime easternNow = utcNow.withZoneSameInstant(ZoneId.of("America/New_York"));
         try {
-            hourlyRsiAlertJob.runDailyWatchlistCheck();
+            if (utcNow.getHour() % 4 == 0) {
+                hourlyRsiAlertJob.runCryptoRsiCheck();
+            }
 
-            log.info("One-shot 4H + Daily watchlist check complete — shutting down.");
+            boolean weekday = easternNow.getDayOfWeek().compareTo(DayOfWeek.MONDAY) >= 0
+                && easternNow.getDayOfWeek().compareTo(DayOfWeek.FRIDAY) <= 0;
+            if (weekday && (easternNow.getHour() == 10 || easternNow.getHour() == 14)) {
+                hourlyRsiAlertJob.runStockRsiCheck();
+            }
+
+            if (easternNow.getHour() == 8) {
+                hourlyRsiAlertJob.runDailyWatchlistCheck();
+            }
+
+            log.info("One-shot alert check complete for UTC={} / Eastern={} — shutting down.",
+                utcNow, easternNow);
         } finally {
             // Force exit so the scheduler threads don't keep the JVM alive.
             // This is required for GitHub Actions to finish the job cleanly.
