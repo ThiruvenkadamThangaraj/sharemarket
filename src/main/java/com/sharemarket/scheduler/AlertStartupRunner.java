@@ -54,7 +54,7 @@ public class AlertStartupRunner implements ApplicationRunner {
                 hourlyRsiAlertJob.runStockRsiCheck();
             }
 
-            if (easternNow.getHour() == 8) {
+            if (easternNow.getHour() == 20) {
                 hourlyRsiAlertJob.runDailyWatchlistCheck();
             }
 
