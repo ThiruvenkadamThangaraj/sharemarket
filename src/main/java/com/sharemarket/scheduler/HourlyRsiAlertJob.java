@@ -25,8 +25,8 @@ import java.util.List;
  * stocks run only during the US market session.
  *
  * Symbols to watch are configured in application.properties:
- *   crypto.alert.symbols=ETH-USD,BTCUSDT
- *   stock.alert.symbols=TSLA,NVDA,AAPL
+ *   crypto.alert.symbols=ETH-USD
+ *   stock.alert.symbols=TSLA,SPCX
  */
 @Slf4j
 @Component
@@ -38,10 +38,10 @@ public class HourlyRsiAlertJob {
     private final RsiAlertService   rsiAlertService;
     private final MarketConfig      marketConfig;
 
-    @Value("${crypto.alert.symbols:ETH-USD,BTCUSDT}")
+    @Value("${crypto.alert.symbols:ETH-USD}")
     private String cryptoAlertSymbols;
 
-    @Value("${stock.alert.symbols:TSLA,NVDA,IAU,AAPL,MSFT,AMZN,GOOGL,META,AVGO,JPM,BRK.B}")
+    @Value("${stock.alert.symbols:TSLA,SPCX}")
     private String stockAlertSymbols;
 
     @Value("${alert.rsi.overbought:80}")
@@ -51,7 +51,7 @@ public class HourlyRsiAlertJob {
     private double oversoldThreshold;
 
     /** Symbols checked once a day on both the 4H and Daily chart. */
-    @Value("${watchlist.symbols:BTCUSDT,ETH-USD,TSLA,NVDA,IAU,AAPL,MSFT,AMZN,GOOGL,META,AVGO,JPM,BRK.B}")
+    @Value("${watchlist.symbols:ETH-USD,TSLA,SPCX}")
     private String watchlistSymbols;
 
     // ── 1-hour candle fetch settings (RSI) ───────────────────────────────────
@@ -167,7 +167,7 @@ public class HourlyRsiAlertJob {
     // ── Daily watchlist check (4H + Daily chart) ─────────────────────────────
 
     /**
-     * Runs once per day for the watchlist symbols (default: ETH-USD, TSLA, NVDA, IAU),
+        * Runs once per day for the watchlist symbols (default: ETH-USD, TSLA, SPCX),
      * checking BOTH the 4-hour and Daily chart in a single combined report.
      *
     * The default cron fires at 8:00 AM America/New_York, with daylight saving
