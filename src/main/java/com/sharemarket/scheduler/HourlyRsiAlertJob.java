@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -89,6 +90,7 @@ public class HourlyRsiAlertJob {
 
         int rsiPeriod = marketConfig.getRsi().getPeriod();
         int maPeriod  = marketConfig.getRsi().getMaPeriod();
+        List<RsiAlertService.ZoneUpdateSnapshot> zoneUpdates = new ArrayList<>();
 
         for (String symbol : symbols) {
             try {
@@ -139,8 +141,8 @@ public class HourlyRsiAlertJob {
                     currentPrice, support, resistance, pivots);
 
                 // ── Unconditional zone update (pivot + S/R, always fires) ──────────
-                rsiAlertService.sendZoneUpdate(
-                    symbol, result.rsi(), currentPrice, support, resistance, pivots);
+                zoneUpdates.add(new RsiAlertService.ZoneUpdateSnapshot(
+                    symbol, result.rsi(), currentPrice, support, resistance, pivots));
 
                 // Respect Yahoo Finance rate limits
                 Thread.sleep(700);
@@ -153,6 +155,8 @@ public class HourlyRsiAlertJob {
                 log.error("Error checking RSI for {}: {}", symbol, e.getMessage(), e);
             }
         }
+
+        rsiAlertService.sendZoneUpdates(zoneUpdates);
 
         log.info("────────────────────────────────────────");
         log.info("  {} Four-hour RSI Alert Check — DONE", marketType);
