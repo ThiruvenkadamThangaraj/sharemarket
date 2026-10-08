@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 /**
- * Runs at minute :01 of every hour, analyzes configured symbols,
+ * Runs at minute :01 every four hours, analyzes configured symbols,
  * and emails the results as an HTML report (no attachment).
  */
 @Slf4j
@@ -24,7 +24,7 @@ public class CryptoReportScheduler {
     private final CryptoEmailReportService    emailReportService;
     private final CryptoFrameworkProperties   frameworkProperties;
 
-    @Scheduled(cron = "${crypto.email.scheduler.cron:0 1 * * * *}")
+    @Scheduled(cron = "${crypto.email.scheduler.cron:0 1 0/4 * * *}", zone = "UTC")
     public void runHourlyReport() {
         log.info("────────────────────────────────────────");
         log.info("  Crypto Report Scheduler — STARTED");
