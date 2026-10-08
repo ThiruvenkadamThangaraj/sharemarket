@@ -54,12 +54,7 @@ public class HourlyRsiAlertJob {
     @Value("${watchlist.symbols:ETH-USD,TSLA,SPCX}")
     private String watchlistSymbols;
 
-    // ── 1-hour candle fetch settings (RSI) ───────────────────────────────────
-    // "5d" gives ~120 hourly bars — plenty for RSI-14 (needs 14 + 9 = 23 minimum)
-    private static final String INTERVAL_1H = "1h";
-    private static final String RANGE_5D    = "5d";
-
-    // ── 4-hour candle fetch settings (Support / Resistance) ───────────────────
+    // ── 4-hour candle fetch settings (RSI and Support / Resistance) ───────────
     // "3mo" gives ~540 4h bars — enough for a reliable swing high/low lookback
     private static final String INTERVAL_4H = "4h";
     private static final String RANGE_3MO   = "3mo";
@@ -167,11 +162,11 @@ public class HourlyRsiAlertJob {
     // ── Daily watchlist check (4H + Daily chart) ─────────────────────────────
 
     /**
-        * Runs once per day for the watchlist symbols (default: ETH-USD, TSLA, SPCX),
+    * Runs once per day for the watchlist symbols (default: ETH-USD, TSLA, SPCX),
      * checking BOTH the 4-hour and Daily chart in a single combined report.
      *
-    * The default cron fires at 8:00 AM America/New_York, with daylight saving
-    * time handled by the scheduler zone.
+     * The default cron fires at 8:00 AM America/New_York, with daylight saving
+     * time handled by the scheduler zone.
      */
     @Scheduled(cron = "${watchlist.scheduler.cron:0 0 8 * * *}", zone = "America/New_York")
     public void runDailyWatchlistCheck() {

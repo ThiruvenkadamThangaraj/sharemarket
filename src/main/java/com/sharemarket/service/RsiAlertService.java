@@ -198,7 +198,7 @@ public class RsiAlertService {
      * and the cooldown for that symbol+direction has expired.
      *
      * @param symbol     Yahoo Finance ticker, e.g. "BTC-USD"
-     * @param rsi        current RSI value (1-hour candle)
+        * @param rsi        current RSI value (4-hour candle)
      * @param overbought threshold above which an overbought alert fires
      * @param oversold   threshold below which an oversold alert fires
      * @param price      current close price (informational)
@@ -303,7 +303,7 @@ public class RsiAlertService {
           .append("<table style='border-collapse:collapse;width:100%;'>")
           .append(sectionHeader("Price &amp; RSI", "#34495e"))
           .append(row("Symbol",         symbol))
-          .append(row("Interval",       "1-Hour Candle"))
+          .append(row("Interval",       "4-Hour Candle"))
           .append(row("Current Price",  String.format("<b>$%.4f</b>", price)))
           .append(row("RSI (14)",        String.format("<b style='color:" + color + ";font-size:1.3em;'>%.2f</b>", rsi)))
           .append(row("RSI Oversold",   "<span style='color:#27ae60;font-weight:bold;'>30</span> → Buy zone"))
