@@ -1,0 +1,40 @@
+name: Crypto Buy Signals
+
+on:
+  # Send the crypto report every four hours. GitHub Actions cron uses UTC.
+  schedule:
+    - cron: '1 */4 * * *'
+
+  workflow_dispatch:
+
+jobs:
+  crypto-report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build crypto buy-signals jar
+        run: mvn package -q -DskipTests -f crypto-buy-signals-service/pom.xml
+
+      - name: Run crypto buy-signals report
+        env:
+          GMAIL_USER:          ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD:  ${{ secrets.GMAIL_APP_PASSWORD }}
+          ALERT_EMAIL_TO:      ${{ secrets.ALERT_EMAIL_TO }}
+        run: |
+          java \
+            -Dcrypto.run-on-startup=true \
+            -Dspring.mail.username="${GMAIL_USER}" \
+            -Dspring.mail.password="${GMAIL_APP_PASSWORD}" \
+            -Dalert.email.to="${ALERT_EMAIL_TO}" \
+            -jar crypto-buy-signals-service/target/crypto-buy-signals-service-1.0.0.jar
